@@ -2,7 +2,9 @@
 #include <GL3/gl3w.h>
 #include <GLFW/glfw3.h>
 #include <glm/mat4x4.hpp>
+#include <glm/vec3.hpp>
 #include <glm/vec4.hpp>
+#include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
 
 #include <iostream>
@@ -24,9 +26,6 @@
 #define WINVER _NT_TARGET_VERSION_VISTA
 #endif
 
-#include "matrices.h"
-
-#define BUFFER_OFFSET(a) ((void*)(a))
 
 // Windows procedures
 #define PROC_INFO_MENU 1
@@ -67,6 +66,10 @@ GLuint BuildTriangles();
 // windows.h functions
 LRESULT CALLBACK WindowProcedure(HWND hWnd, UINT msg, WPARAM wp, LPARAM lp);
 void AddMenus(HWND hWnd, HMENU hMenu);
+
+// camera functions
+glm::mat4 camera(float Translate, glm::vec2 const & Rotate);
+
 
 int main( int argc, char** argv )
 {
@@ -142,9 +145,31 @@ int main( int argc, char** argv )
 
 	GLuint vertex_array_object_id = BuildTriangles();
 
-    glUseProgram(program_id);
+
 
     while (!glfwWindowShouldClose(window)) {
+		
+		glm::mat4 viewMatrix;
+		glm::mat4 projectionMatrix;
+
+		// Set up camera parameters
+		glm::vec3 cameraPosition = glm::vec3(0.0f, 0.0f, 3.0f);
+		glm::vec3 cameraTarget = glm::vec3(0.0f, 0.0f, 0.0f);
+		glm::vec3 cameraUp = glm::vec3(0.0f, 1.0f, 0.0f);
+
+		// Create the view matrix
+		viewMatrix = glm::lookAt(cameraPosition, cameraTarget, cameraUp);
+		float FOV = 45.0f;
+		float aspectRatio = 800.0f / 600.0f;
+		float nearPlane = 0.1f;
+		float farPlane = 100.0f;
+		projectionMatrix = glm::perspective(glm::radians(FOV), aspectRatio, nearPlane, farPlane);
+		glm::mat4 viewProjectionMatrix = projectionMatrix * viewMatrix;
+		
+		GLint viewProjectionMatrixLoc = glGetUniformLocation(program_id, "viewProjectionMatrix");
+		glUseProgram(program_id);
+		glUniformMatrix4fv(viewProjectionMatrixLoc, 1, GL_FALSE, glm::value_ptr(viewProjectionMatrix));
+		
         static const float background[] = { 1.0f, 1.0f, 1.0f, 0.0f };
 
         glClearBufferfv(GL_COLOR, 0, background);
@@ -405,4 +430,15 @@ void AddMenus(HWND hWnd, HMENU hMenu)
 	AppendMenu(hMenu, MF_STRING, PROC_INFO_MENU, info);
 	
 	SetMenu(hWnd, hMenu);
+}
+
+glm::mat4 camera(float Translate, glm::vec2 const & Rotate)
+{
+	glm::mat4 Projection = glm::perspective(glm::radians(45.0f), 4.0f / 3.0f, 0.1f, 100.f);
+	glm::mat4 View = glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 0.0f, -Translate));
+	View = glm::rotate(View, Rotate.y, glm::vec3(-1.0f, 0.0f, 0.0f));
+	View = glm::rotate(View, Rotate.x, glm::vec3(0.0f, 1.0f, 0.0f));
+	glm::mat4 Model = glm::scale(glm::mat4(1.0f), glm::vec3(0.5f));
+	
+	return Projection * View * Model;
 }

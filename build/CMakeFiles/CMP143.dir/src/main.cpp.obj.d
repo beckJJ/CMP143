@@ -159,14 +159,12 @@ CMakeFiles/CMP143.dir/src/main.cpp.obj: \
  d:\ufrgs\2023-1\computacao\ grafica\cmp143\include\glm\ext\matrix_double4x4_precision.hpp \
  d:\ufrgs\2023-1\computacao\ grafica\cmp143\include\glm\ext\matrix_float4x4.hpp \
  d:\ufrgs\2023-1\computacao\ grafica\cmp143\include\glm\ext\matrix_float4x4_precision.hpp \
- D:/UFRGS/2023-1/Computacao\ Grafica/CMP143/include/glm/gtc/type_ptr.hpp \
- d:\ufrgs\2023-1\computacao\ grafica\cmp143\include\glm\gtc\quaternion.hpp \
+ D:/UFRGS/2023-1/Computacao\ Grafica/CMP143/include/glm/gtc/matrix_transform.hpp \
+ d:\ufrgs\2023-1\computacao\ grafica\cmp143\include\glm\ext\matrix_projection.hpp \
  d:\ufrgs\2023-1\computacao\ grafica\cmp143\include\glm\gtc\constants.hpp \
  d:\ufrgs\2023-1\computacao\ grafica\cmp143\include\glm\ext\scalar_constants.hpp \
  d:\ufrgs\2023-1\computacao\ grafica\cmp143\include\glm\ext\scalar_constants.inl \
  d:\ufrgs\2023-1\computacao\ grafica\cmp143\include\glm\gtc\constants.inl \
- d:\ufrgs\2023-1\computacao\ grafica\cmp143\include\glm\gtc\matrix_transform.hpp \
- d:\ufrgs\2023-1\computacao\ grafica\cmp143\include\glm\ext\matrix_projection.hpp \
  d:\ufrgs\2023-1\computacao\ grafica\cmp143\include\glm\trigonometric.hpp \
  d:\ufrgs\2023-1\computacao\ grafica\cmp143\include\glm\detail/func_trigonometric.inl \
  d:\ufrgs\2023-1\computacao\ grafica\cmp143\include\glm\ext\matrix_projection.inl \
@@ -174,7 +172,9 @@ CMakeFiles/CMP143.dir/src/main.cpp.obj: \
  d:\ufrgs\2023-1\computacao\ grafica\cmp143\include\glm\ext\matrix_clip_space.inl \
  d:\ufrgs\2023-1\computacao\ grafica\cmp143\include\glm\ext\matrix_transform.hpp \
  d:\ufrgs\2023-1\computacao\ grafica\cmp143\include\glm\ext\matrix_transform.inl \
- d:\ufrgs\2023-1\computacao\ grafica\cmp143\include\glm\gtc\matrix_transform.inl \
+ D:/UFRGS/2023-1/Computacao\ Grafica/CMP143/include/glm/gtc/matrix_transform.inl \
+ D:/UFRGS/2023-1/Computacao\ Grafica/CMP143/include/glm/gtc/type_ptr.hpp \
+ d:\ufrgs\2023-1\computacao\ grafica\cmp143\include\glm\gtc\quaternion.hpp \
  d:\ufrgs\2023-1\computacao\ grafica\cmp143\include\glm\ext\vector_relational.hpp \
  d:\ufrgs\2023-1\computacao\ grafica\cmp143\include\glm\ext\vector_relational.inl \
  d:\ufrgs\2023-1\computacao\ grafica\cmp143\include\glm\detail\type_float.hpp \
@@ -321,5 +321,4 @@ CMakeFiles/CMP143.dir/src/main.cpp.obj: \
  c:\mingw\include\rpc.h c:\mingw\include\rpcdce.h \
  c:\mingw\include\rpcdcep.h c:\mingw\include\rpcnsi.h \
  c:\mingw\include\rpcnterr.h c:\mingw\include\rpcndr.h \
- c:\mingw\include\rpcnsip.h c:\mingw\include\prsht.h \
- D:/UFRGS/2023-1/Computacao\ Grafica/CMP143/include/matrices.h
+ c:\mingw\include\rpcnsip.h c:\mingw\include\prsht.h

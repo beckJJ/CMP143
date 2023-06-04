@@ -205,14 +205,12 @@ CMakeFiles/CMP143.dir/src/main.cpp.obj: ../src/main.cpp \
   ../include/glm/ext/matrix_double4x4_precision.hpp \
   ../include/glm/ext/matrix_float4x4.hpp \
   ../include/glm/ext/matrix_float4x4_precision.hpp \
-  ../include/glm/gtc/type_ptr.hpp \
-  ../include/glm/gtc/quaternion.hpp \
+  ../include/glm/gtc/matrix_transform.hpp \
+  ../include/glm/ext/matrix_projection.hpp \
   ../include/glm/gtc/constants.hpp \
   ../include/glm/ext/scalar_constants.hpp \
   ../include/glm/ext/scalar_constants.inl \
   ../include/glm/gtc/constants.inl \
-  ../include/glm/gtc/matrix_transform.hpp \
-  ../include/glm/ext/matrix_projection.hpp \
   ../include/glm/trigonometric.hpp \
   ../include/glm/detail/func_trigonometric.inl \
   ../include/glm/ext/matrix_projection.inl \
@@ -221,6 +219,8 @@ CMakeFiles/CMP143.dir/src/main.cpp.obj: ../src/main.cpp \
   ../include/glm/ext/matrix_transform.hpp \
   ../include/glm/ext/matrix_transform.inl \
   ../include/glm/gtc/matrix_transform.inl \
+  ../include/glm/gtc/type_ptr.hpp \
+  ../include/glm/gtc/quaternion.hpp \
   ../include/glm/ext/vector_relational.hpp \
   ../include/glm/ext/vector_relational.inl \
   ../include/glm/detail/type_float.hpp \
@@ -382,8 +382,7 @@ CMakeFiles/CMP143.dir/src/main.cpp.obj: ../src/main.cpp \
   C:/MinGW/include/rpcnterr.h \
   C:/MinGW/include/rpcndr.h \
   C:/MinGW/include/rpcnsip.h \
-  C:/MinGW/include/prsht.h \
-  ../include/matrices.h
+  C:/MinGW/include/prsht.h
 
 
 ../lib/gl3w.c:
@@ -816,9 +815,11 @@ C:/MinGW/lib/gcc/mingw32/6.3.0/include/c++/mingw32/bits/error_constants.h:
 
 ../include/glm/ext/matrix_float4x4_precision.hpp:
 
-../include/glm/gtc/type_ptr.hpp:
+C:/MinGW/lib/gcc/mingw32/6.3.0/include/c++/bits/sstream.tcc:
 
-../include/glm/gtc/quaternion.hpp:
+../include/glm/gtc/matrix_transform.hpp:
+
+../include/glm/ext/matrix_projection.hpp:
 
 C:/MinGW/lib/gcc/mingw32/6.3.0/include/c++/bits/functional_hash.h:
 
@@ -832,12 +833,6 @@ C:/MinGW/lib/gcc/mingw32/6.3.0/include/c++/bits/functional_hash.h:
 
 ../include/glm/gtc/constants.inl:
 
-C:/MinGW/lib/gcc/mingw32/6.3.0/include/c++/bits/sstream.tcc:
-
-../include/glm/gtc/matrix_transform.hpp:
-
-../include/glm/ext/matrix_projection.hpp:
-
 ../include/glm/trigonometric.hpp:
 
 ../include/glm/detail/func_trigonometric.inl:
@@ -849,6 +844,10 @@ C:/MinGW/lib/gcc/mingw32/6.3.0/include/c++/bits/sstream.tcc:
 C:/MinGW/lib/gcc/mingw32/6.3.0/include/c++/bits/stl_relops.h:
 
 ../include/glm/ext/matrix_transform.inl:
+
+../include/glm/gtc/type_ptr.hpp:
+
+../include/glm/gtc/quaternion.hpp:
 
 C:/MinGW/lib/gcc/mingw32/6.3.0/include/c++/new:
 
@@ -933,8 +932,6 @@ C:/MinGW/include/stdio.h:
 C:/MinGW/include/stdlib.h:
 
 C:/MinGW/include/sys/stat.h:
-
-../include/matrices.h:
 
 C:/MinGW/include/io.h:
 
