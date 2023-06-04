@@ -41,14 +41,6 @@ struct SceneObject {
     GLenum       rendering_mode;
 };
 
-enum VAO_IDs { Triangles, NumVAOs };
-enum Buffer_IDs { ArrayBuffer, NumBuffers };
-enum Attrib_IDs { vPosition = 0 };
-
-GLuint  Buffers[NumBuffers];
-
-const GLuint  NumVertices = 3;
-
 // global variables
 bool g_LeftMouseButtonPressed = false;
 float g_ScreenRatio;
@@ -159,7 +151,6 @@ int main( int argc, char** argv )
 
         glBindVertexArray(vertex_array_object_id);
 		
-	//	glDrawArrays(GL_TRIANGLES, 0, NumVertices);
 		glDrawElements(
 			g_VirtualScene["triangulo"].rendering_mode,
 			g_VirtualScene["triangulo"].num_indices,
