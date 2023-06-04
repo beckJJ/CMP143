@@ -1,18 +1,47 @@
+//////////////////////////////////////////////////////////////////////////////
+//
+//  Triangles.cpp
+//
+//////////////////////////////////////////////////////////////////////////////
+
 #include <GL3/gl3.h>
 #include <GL3/gl3w.h>
 #include <GLFW/glfw3.h>
+#include <glm/mat4x4.hpp>
+#include <glm/vec4.hpp>
+#include <glm/gtc/type_ptr.hpp>
 
 #include <iostream>
 #include <fstream>
 #include <sstream>
+#include <map>
 
-#include <Windows.h>
+#include <math.h>
+//#include <Windows.h>
 
+#include "matrices.h"
+#define BUFFER_OFFSET(a) ((void*)(a))
+
+struct SceneObject {
+    const char*  name;        
+    void*        first_index; 
+    int          num_indices; 
+    GLenum       rendering_mode;
+};
+
+enum VAO_IDs { Triangles, NumVAOs };
+enum Buffer_IDs { ArrayBuffer, NumBuffers };
+enum Attrib_IDs { vPosition = 0 };
+
+GLuint  Buffers[NumBuffers];
+
+const GLuint  NumVertices = 3;
 
 // global variables
 bool g_LeftMouseButtonPressed = false;
 float g_ScreenRatio;
 double g_LastCursorPosX, g_LastCursorPosY;
+std::map<const char*, SceneObject> g_VirtualScene;
 
 // callback functions
 void ErrorCallback(int error, const char *description);
@@ -29,7 +58,9 @@ GLuint LoadShader_Vertex(const char *filename);
 GLuint LoadShader_Fragment(const char *filename);
 GLuint CreateGpuProgram(GLuint vertex_shader_id, GLuint fragment_shader_id);
 
-int main(int argc, char **argv)
+GLuint BuildTriangles();
+
+int main( int argc, char** argv )
 {
 	int success = glfwInit();
 	if (!success) {
@@ -54,28 +85,114 @@ int main(int argc, char **argv)
 	glfwSetCursorPosCallback(window, CursorPosCallback);
 	glfwSetScrollCallback(window, ScrollCallback);
     glfwSetFramebufferSizeCallback(window, FramebufferSizeCallback);
-    
-	glfwSetWindowSize(window, 800, 600);
 	
-	glfwMakeContextCurrent(window);
-
+    glfwMakeContextCurrent(window);
+	
 	// load shaders
-	gl3wInit();
+    gl3wInit();
 	GLuint vertex_shader_id = LoadShader_Vertex("../triangles.vert");
-	GLuint fragment_shader_id = LoadShader_Fragment("../triangles.frag");	
-	
+	GLuint fragment_shader_id = LoadShader_Fragment("../triangles.frag");
 	GLuint program_id = CreateGpuProgram(vertex_shader_id, fragment_shader_id);
-	glUseProgram(program_id);
-	
-	while (!glfwWindowShouldClose(window)) {
-		glClearColor(1.0f, 1.0f, 1.0f, 1.0f);
+
+
+	GLuint vertex_array_object_id = BuildTriangles();
+
+    glUseProgram(program_id);
+
+    while (!glfwWindowShouldClose(window))
+    {
+        static const float black[] = { 0.0f, 0.0f, 0.0f, 0.0f };
+
+        glClearBufferfv(GL_COLOR, 0, black);
+
+        glBindVertexArray(vertex_array_object_id);
 		
-		glfwSwapBuffers(window);
-		glfwPollEvents();
-	}
-	glfwDestroyWindow(window);
-	glfwTerminate();
+		glDrawArrays(GL_TRIANGLES, 0, NumVertices);
+		
+	/*	glDrawElements(
+			GL_TRIANGLES,
+			NumVertices,
+			GL_UNSIGNED_INT,
+			0
+		);
+        */
+
+        glfwSwapBuffers(window);
+        glfwPollEvents();
+    }
+
+    glfwDestroyWindow(window);
+
+    glfwTerminate();
 	return 0;
+}
+
+GLuint BuildTriangles()
+{
+	GLuint vertex_array_object_id;
+	glGenVertexArrays(1, &vertex_array_object_id);
+	glBindVertexArray(vertex_array_object_id);
+	/*
+    GLfloat  vertices[NumVertices][2] = {
+        { -0.90f, -0.90f }, {  0.85f, -0.90f }, { -0.90f,  0.85f }  // Triangle 1
+    };-*/
+	
+	GLfloat  vertices[] = {
+	//     X       Y        Z      W
+		-0.90f, -0.90f ,  0.0f , 1.0f,
+		 0.85f, -0.90f ,  0.0f , 1.0f,
+		-0.90f,  0.85f ,  0.0f , 1.0f // Triangle 1
+    };
+	
+/*	GLuint VBO_model_coefficients_id;
+	glGenBuffers(1, &VBO_model_coefficients_id);
+	glBindBuffer(GL_ARRAY_BUFFER, VBO_model_coefficients_id);
+	glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), NULL, GL_STATIC_DRAW);
+    glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(vertices), vertices);
+
+	*/
+	GLuint location = 0;
+	GLint  number_of_dimensions = 4;
+	/*
+	glVertexAttribPointer(location, number_of_dimensions, GL_FLOAT, GL_FALSE, 0, 0);
+	glEnableVertexAttribArray(location);
+	glBindBuffer(GL_ARRAY_BUFFER, 0);
+*/
+
+
+    GLfloat color_coefficients[] = {
+    //  R     G     B     A
+        1.0f, 0.0f, 0.0f, 1.0f,
+        0.0f, 1.0f, 0.0f, 1.0f,
+        0.0f, 0.0f, 1.0f, 1.0f
+    };
+	GLuint VBO_color_coefficients_id;
+    glGenBuffers(1, &VBO_color_coefficients_id);
+    glBindBuffer(GL_ARRAY_BUFFER, VBO_color_coefficients_id);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(color_coefficients), NULL, GL_STATIC_DRAW);
+    glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(color_coefficients), color_coefficients);
+    location = 1; // "(location = 1)" em "shader_vertex.glsl"
+    number_of_dimensions = 4; // vec4 em "shader_vertex.glsl"
+    glVertexAttribPointer(location, number_of_dimensions, GL_FLOAT, GL_FALSE, 0, 0);
+    glEnableVertexAttribArray(location);
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
+	
+    glCreateBuffers(NumBuffers, Buffers);
+    glBindBuffer(GL_ARRAY_BUFFER, Buffers[ArrayBuffer]);
+    glBufferStorage(GL_ARRAY_BUFFER, sizeof(vertices), vertices, 0);
+	
+/*
+	SceneObject triangle;
+    triangle.name           = "Cubo (faces coloridas)";
+    triangle.first_index    = (void*)0; // Primeiro índice está em indices[0]
+    triangle.num_indices    = 3;       // Último índice está em indices[35]; total de 36 índices.
+    triangle.rendering_mode = GL_TRIANGLES; // Índices correspondem ao tipo de rasterização GL_TRIANGLES.
+	g_VirtualScene["triangle"] = triangle;
+*/
+
+    glVertexAttribPointer(vPosition, 2, GL_FLOAT,
+        GL_FALSE, 0, BUFFER_OFFSET(0));
+    glEnableVertexAttribArray(vPosition);
 }
 
 void ErrorCallback(int error, const char *description)
