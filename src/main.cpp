@@ -1,9 +1,3 @@
-//////////////////////////////////////////////////////////////////////////////
-//
-//  Triangles.cpp
-//
-//////////////////////////////////////////////////////////////////////////////
-
 #include <GL3/gl3.h>
 #include <GL3/gl3w.h>
 #include <GLFW/glfw3.h>
@@ -17,10 +11,28 @@
 #include <map>
 
 #include <math.h>
-//#include <Windows.h>
+
+#include <Windows.h>
+#include <sdkddkver.h>
+#include <commdlg.h>
+
+#ifndef _WIN32_WINNT
+#define _WIN32_WINNT _NT_TARGET_VERSION_VISTA
+#endif
+
+#ifndef WINVER
+#define WINVER _NT_TARGET_VERSION_VISTA
+#endif
 
 #include "matrices.h"
+
 #define BUFFER_OFFSET(a) ((void*)(a))
+
+// Windows procedures
+#define PROC_INFO_MENU 1
+#define PROC_EXIT_MENU 2
+
+
 
 struct SceneObject {
     const char*  name;        
@@ -60,8 +72,49 @@ GLuint CreateGpuProgram(GLuint vertex_shader_id, GLuint fragment_shader_id);
 
 GLuint BuildTriangles();
 
+// windows.h functions
+LRESULT CALLBACK WindowProcedure(HWND hWnd, UINT msg, WPARAM wp, LPARAM lp);
+void AddMenus(HWND hWnd, HMENU hMenu);
+
 int main( int argc, char** argv )
 {
+	// initialize win32 window
+	WNDCLASSW wc = { 0 }; // define window class
+    wc.style = CS_HREDRAW | CS_VREDRAW;
+    wc.lpfnWndProc = WindowProcedure;
+    wc.cbClsExtra = 0;
+    wc.cbWndExtra = 0;
+    wc.hInstance = (HINSTANCE)GetModuleHandle(NULL);
+    wc.hIcon = NULL;
+    wc.hCursor = LoadCursor(NULL, IDC_ARROW);
+    wc.hbrBackground = (HBRUSH)COLOR_WINDOW;
+    wc.lpszMenuName = NULL;
+    wc.lpszClassName = L"WindowClass";
+	
+	// register class
+	if (!RegisterClassW(&wc)) {
+		return 0;
+	}
+	
+	// create main window
+	HWND hWnd = CreateWindowW(L"WindowClass", L"CMP143",
+						WS_OVERLAPPEDWINDOW | WS_VISIBLE,
+						100, 100,
+						260, 420,
+						NULL, NULL, NULL, NULL);				
+	if (!hWnd) {
+		return 0;
+	}
+	
+	// create menu and controls
+	HMENU hMenu = { 0 };
+	AddMenus(hWnd, hMenu);
+	//AddControls(hWnd);
+	MSG msg = { 0 };
+	UpdateWindow(hWnd);
+
+
+	// initialize openGL
 	int success = glfwInit();
 	if (!success) {
 		fprintf(stderr, "ERROR: glfwInit() failed.\n");
@@ -99,23 +152,20 @@ int main( int argc, char** argv )
 
     glUseProgram(program_id);
 
-    while (!glfwWindowShouldClose(window))
-    {
-        static const float black[] = { 0.0f, 0.0f, 0.0f, 0.0f };
+    while (!glfwWindowShouldClose(window)) {
+        static const float background[] = { 1.0f, 1.0f, 1.0f, 0.0f };
 
-        glClearBufferfv(GL_COLOR, 0, black);
+        glClearBufferfv(GL_COLOR, 0, background);
 
         glBindVertexArray(vertex_array_object_id);
 		
-		glDrawArrays(GL_TRIANGLES, 0, NumVertices);
-		
-	/*	glDrawElements(
-			GL_TRIANGLES,
-			NumVertices,
+	//	glDrawArrays(GL_TRIANGLES, 0, NumVertices);
+		glDrawElements(
+			g_VirtualScene["triangulo"].rendering_mode,
+			g_VirtualScene["triangulo"].num_indices,
 			GL_UNSIGNED_INT,
-			0
+			(void*)g_VirtualScene["triangulo"].first_index
 		);
-        */
 
         glfwSwapBuffers(window);
         glfwPollEvents();
@@ -129,70 +179,67 @@ int main( int argc, char** argv )
 
 GLuint BuildTriangles()
 {
-	GLuint vertex_array_object_id;
-	glGenVertexArrays(1, &vertex_array_object_id);
-	glBindVertexArray(vertex_array_object_id);
-	/*
-    GLfloat  vertices[NumVertices][2] = {
-        { -0.90f, -0.90f }, {  0.85f, -0.90f }, { -0.90f,  0.85f }  // Triangle 1
-    };-*/
-	
-	GLfloat  vertices[] = {
+	GLfloat  model_coefficients[] = {
 	//     X       Y        Z      W
 		-0.90f, -0.90f ,  0.0f , 1.0f,
 		 0.85f, -0.90f ,  0.0f , 1.0f,
 		-0.90f,  0.85f ,  0.0f , 1.0f // Triangle 1
     };
-	
-/*	GLuint VBO_model_coefficients_id;
+	GLuint VBO_model_coefficients_id;
 	glGenBuffers(1, &VBO_model_coefficients_id);
-	glBindBuffer(GL_ARRAY_BUFFER, VBO_model_coefficients_id);
-	glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), NULL, GL_STATIC_DRAW);
-    glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(vertices), vertices);
+	
 
-	*/
+	GLuint vertex_array_object_id;
+	glGenVertexArrays(1, &vertex_array_object_id);
+	glBindVertexArray(vertex_array_object_id);
+    glBindBuffer(GL_ARRAY_BUFFER, VBO_model_coefficients_id);
+	glBufferData(GL_ARRAY_BUFFER, sizeof(model_coefficients), NULL, GL_STATIC_DRAW);
+	glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(model_coefficients), model_coefficients);
+	
 	GLuint location = 0;
-	GLint  number_of_dimensions = 4;
-	/*
+	GLint number_of_dimensions = 4;
 	glVertexAttribPointer(location, number_of_dimensions, GL_FLOAT, GL_FALSE, 0, 0);
 	glEnableVertexAttribArray(location);
 	glBindBuffer(GL_ARRAY_BUFFER, 0);
-*/
-
-
+	
     GLfloat color_coefficients[] = {
     //  R     G     B     A
         1.0f, 0.0f, 0.0f, 1.0f,
         0.0f, 1.0f, 0.0f, 1.0f,
         0.0f, 0.0f, 1.0f, 1.0f
     };
-	GLuint VBO_color_coefficients_id;
+    GLuint VBO_color_coefficients_id;
     glGenBuffers(1, &VBO_color_coefficients_id);
     glBindBuffer(GL_ARRAY_BUFFER, VBO_color_coefficients_id);
     glBufferData(GL_ARRAY_BUFFER, sizeof(color_coefficients), NULL, GL_STATIC_DRAW);
     glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(color_coefficients), color_coefficients);
-    location = 1; // "(location = 1)" em "shader_vertex.glsl"
-    number_of_dimensions = 4; // vec4 em "shader_vertex.glsl"
+    location = 1;
+    number_of_dimensions = 4;
     glVertexAttribPointer(location, number_of_dimensions, GL_FLOAT, GL_FALSE, 0, 0);
     glEnableVertexAttribArray(location);
     glBindBuffer(GL_ARRAY_BUFFER, 0);
 	
-    glCreateBuffers(NumBuffers, Buffers);
-    glBindBuffer(GL_ARRAY_BUFFER, Buffers[ArrayBuffer]);
-    glBufferStorage(GL_ARRAY_BUFFER, sizeof(vertices), vertices, 0);
 	
-/*
-	SceneObject triangle;
-    triangle.name           = "Cubo (faces coloridas)";
-    triangle.first_index    = (void*)0; // Primeiro índice está em indices[0]
-    triangle.num_indices    = 3;       // Último índice está em indices[35]; total de 36 índices.
-    triangle.rendering_mode = GL_TRIANGLES; // Índices correspondem ao tipo de rasterização GL_TRIANGLES.
-	g_VirtualScene["triangle"] = triangle;
-*/
+	GLuint indices[] = {
+		0, 1, 2 // triângulo 1
+	};
+	
+	SceneObject triangulo;
+	triangulo.name = "Triangulo";
+	triangulo.first_index = (void*)0;
+	triangulo.num_indices = 3;
+	triangulo.rendering_mode = GL_TRIANGLES;
+	
+	g_VirtualScene["triangulo"] = triangulo;
+	
+	GLuint indices_id;
+	glGenBuffers(1, &indices_id);
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, indices_id);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices), NULL, GL_STATIC_DRAW);
+    glBufferSubData(GL_ELEMENT_ARRAY_BUFFER, 0, sizeof(indices), indices);
 
-    glVertexAttribPointer(vPosition, 2, GL_FLOAT,
-        GL_FALSE, 0, BUFFER_OFFSET(0));
-    glEnableVertexAttribArray(vPosition);
+    glBindVertexArray(0);
+    return vertex_array_object_id;
 }
 
 void ErrorCallback(int error, const char *description)
@@ -325,4 +372,46 @@ GLuint CreateGpuProgram(GLuint vertex_shader_id, GLuint fragment_shader_id)
         fprintf(stderr, "%s", output.c_str());
 	}
 	return program_id;
+}
+
+LRESULT CALLBACK WindowProcedure(HWND hWnd, UINT msg, WPARAM wp, LPARAM lp)
+{
+	int val;
+	switch (msg) {
+	  case WM_COMMAND:
+		switch (wp) {
+		  case PROC_INFO_MENU:
+			MessageBox(NULL, "CMP143", "About", MB_OK);
+			break;
+		  case PROC_EXIT_MENU:
+		    val = MessageBoxW(NULL, L"Exit?", L"", MB_YESNO | MB_ICONEXCLAMATION);
+			if (val == IDYES) {
+				exit(0);
+			}
+			break;
+		}
+		break;
+	  case WM_DESTROY:
+		exit(0);
+		break;
+	  default:
+	    return DefWindowProcW(hWnd, msg, wp, lp);
+	}
+}
+
+void AddMenus(HWND hWnd, HMENU hMenu)
+{
+	hMenu = CreateMenu();
+	HMENU hFileMenu = CreateMenu();
+	
+	LPCSTR exit = "Exit";
+	LPCSTR file = "File";
+	LPCSTR info = "About";
+	
+	AppendMenu(hFileMenu, MF_STRING, PROC_EXIT_MENU, exit);
+	
+	AppendMenu(hMenu, MF_POPUP, (UINT_PTR)hFileMenu, file);
+	AppendMenu(hMenu, MF_STRING, PROC_INFO_MENU, info);
+	
+	SetMenu(hWnd, hMenu);
 }

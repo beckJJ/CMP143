@@ -372,5 +372,18 @@ CMakeFiles/CMP143.dir/src/main.cpp.obj
  C:/MinGW/lib/gcc/mingw32/6.3.0/include/c++/bits/stl_multimap.h
  C:/MinGW/lib/gcc/mingw32/6.3.0/include/c++/math.h
  C:/MinGW/include/windows.h
+ C:/MinGW/include/commdlg.h
+ C:/MinGW/include/unknwn.h
+ C:/MinGW/include/objfwd.h
+ C:/MinGW/include/basetyps.h
+ C:/MinGW/include/wtypes.h
+ C:/MinGW/include/rpc.h
+ C:/MinGW/include/rpcdce.h
+ C:/MinGW/include/rpcdcep.h
+ C:/MinGW/include/rpcnsi.h
+ C:/MinGW/include/rpcnterr.h
+ C:/MinGW/include/rpcndr.h
+ C:/MinGW/include/rpcnsip.h
+ C:/MinGW/include/prsht.h
  D:/UFRGS/2023-1/Computacao Grafica/CMP143/include/matrices.h
 

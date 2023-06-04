@@ -370,6 +370,19 @@ CMakeFiles/CMP143.dir/src/main.cpp.obj: ../src/main.cpp \
   C:/MinGW/lib/gcc/mingw32/6.3.0/include/c++/bits/stl_multimap.h \
   C:/MinGW/lib/gcc/mingw32/6.3.0/include/c++/math.h \
   C:/MinGW/include/windows.h \
+  C:/MinGW/include/commdlg.h \
+  C:/MinGW/include/unknwn.h \
+  C:/MinGW/include/objfwd.h \
+  C:/MinGW/include/basetyps.h \
+  C:/MinGW/include/wtypes.h \
+  C:/MinGW/include/rpc.h \
+  C:/MinGW/include/rpcdce.h \
+  C:/MinGW/include/rpcdcep.h \
+  C:/MinGW/include/rpcnsi.h \
+  C:/MinGW/include/rpcnterr.h \
+  C:/MinGW/include/rpcndr.h \
+  C:/MinGW/include/rpcnsip.h \
+  C:/MinGW/include/prsht.h \
   ../include/matrices.h
 
 
@@ -432,6 +445,8 @@ C:/MinGW/lib/gcc/mingw32/6.3.0/include/c++/debug/debug.h:
 C:/MinGW/include/winnls.h:
 
 C:/MinGW/include/string.h:
+
+C:/MinGW/include/rpc.h:
 
 ../include/glm/mat4x4.hpp:
 
@@ -580,6 +595,8 @@ C:/MinGW/lib/gcc/mingw32/6.3.0/include/c++/bits/ios_base.h:
 ../include/glm/ext/matrix_clip_space.hpp:
 
 ../include/glm/ext/vector_bool3.hpp:
+
+C:/MinGW/include/commdlg.h:
 
 C:/MinGW/lib/gcc/mingw32/6.3.0/include/c++/bits/basic_ios.h:
 
@@ -857,6 +874,8 @@ C:/MinGW/lib/gcc/mingw32/6.3.0/include/c++/bits/exception_ptr.h:
 
 ../include/glm/ext/quaternion_double.hpp:
 
+C:/MinGW/include/rpcnterr.h:
+
 C:/MinGW/lib/gcc/mingw32/6.3.0/include/c++/bits/functexcept.h:
 
 ../include/glm/ext/quaternion_double_precision.hpp:
@@ -1023,6 +1042,26 @@ C:/MinGW/lib/gcc/mingw32/6.3.0/include/c++/tuple:
 
 C:/MinGW/lib/gcc/mingw32/6.3.0/include/c++/utility:
 
+C:/MinGW/include/rpcndr.h:
+
 C:/MinGW/lib/gcc/mingw32/6.3.0/include/c++/bits/uses_allocator.h:
 
 C:/MinGW/lib/gcc/mingw32/6.3.0/include/c++/bits/stl_multimap.h:
+
+C:/MinGW/include/unknwn.h:
+
+C:/MinGW/include/objfwd.h:
+
+C:/MinGW/include/basetyps.h:
+
+C:/MinGW/include/wtypes.h:
+
+C:/MinGW/include/rpcdce.h:
+
+C:/MinGW/include/rpcdcep.h:
+
+C:/MinGW/include/rpcnsi.h:
+
+C:/MinGW/include/rpcnsip.h:
+
+C:/MinGW/include/prsht.h:

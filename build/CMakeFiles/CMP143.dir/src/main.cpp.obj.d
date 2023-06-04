@@ -315,4 +315,11 @@ CMakeFiles/CMP143.dir/src/main.cpp.obj: \
  c:\mingw\lib\gcc\mingw32\6.3.0\include\c++\bits\uses_allocator.h \
  c:\mingw\lib\gcc\mingw32\6.3.0\include\c++\bits\stl_multimap.h \
  c:\mingw\lib\gcc\mingw32\6.3.0\include\c++\math.h \
+ c:\mingw\include\windows.h c:\mingw\include\commdlg.h \
+ c:\mingw\include\unknwn.h c:\mingw\include\objfwd.h \
+ c:\mingw\include\basetyps.h c:\mingw\include\wtypes.h \
+ c:\mingw\include\rpc.h c:\mingw\include\rpcdce.h \
+ c:\mingw\include\rpcdcep.h c:\mingw\include\rpcnsi.h \
+ c:\mingw\include\rpcnterr.h c:\mingw\include\rpcndr.h \
+ c:\mingw\include\rpcnsip.h c:\mingw\include\prsht.h \
  D:/UFRGS/2023-1/Computacao\ Grafica/CMP143/include/matrices.h
