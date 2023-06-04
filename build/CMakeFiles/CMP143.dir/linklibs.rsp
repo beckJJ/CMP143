@@ -1,1 +1,0 @@
-  -L"D:/UFRGS/2023-1/Computacao Grafica/CMP143/lib"  -lopengl32 -lglu32 lib/libglfw3.a -lkernel32 -luser32 -lgdi32 -lwinspool -lshell32 -lole32 -loleaut32 -luuid -lcomdlg32 -ladvapi32 
