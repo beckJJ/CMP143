@@ -32,6 +32,7 @@
 // Windows procedures
 #define PROC_INFO_MENU 1
 #define PROC_EXIT_MENU 2
+#define PROC_OPEN_FILE 3
 
 struct TriangleVertex {
 	glm::vec3 pos;
@@ -69,14 +70,18 @@ bool g_LeftMouseButtonPressed = false;
 float g_ScreenRatio;
 double g_LastCursorPosX, g_LastCursorPosY;
 std::map<const char*, SceneObject> g_VirtualScene;
-glm::vec2 g_CameraRotation;
 float g_CameraTheta = 0.0f; // Ângulo no plano ZX em relação ao eixo Z
 float g_CameraPhi = 0.0f;   // Ângulo em relação ao eixo Y
 float g_CameraDistance = 2.5f; // Distância da câmera para a origem
+bool g_ResetCamera = false;
 bool g_W_pressed = false;
 bool g_A_pressed = false;
 bool g_S_pressed = false;
 bool g_D_pressed = false;
+
+char g_ModelFilename[FILENAME_MAX];
+ModelObject g_Model;
+GLuint g_vertex_array_object_id;
 
 // callback functions
 void ErrorCallback(int error, const char *description);
@@ -99,6 +104,8 @@ ModelObject ReadModelFile(char *filename);
 // windows.h functions
 LRESULT CALLBACK WindowProcedure(HWND hWnd, UINT msg, WPARAM wp, LPARAM lp);
 void AddMenus(HWND hWnd, HMENU hMenu);
+void AddControls(HWND hWnd);
+int openFile(HWND hWnd);
 
 // camera functions
 glm::mat4 camera(float Translate, glm::vec2 const & Rotate);
@@ -137,7 +144,7 @@ int main( int argc, char** argv )
 	// create menu and controls
 	HMENU hMenu = { 0 };
 	AddMenus(hWnd, hMenu);
-	//AddControls(hWnd);
+	AddControls(hWnd);
 	MSG msg = { 0 };
 	UpdateWindow(hWnd);
 
@@ -185,10 +192,10 @@ int main( int argc, char** argv )
     GLint viewMatrixLocation = glGetUniformLocation(program_id, "viewMatrix");
     GLint projectionMatrixLocation = glGetUniformLocation(program_id, "projectionMatrix");
 
+	g_vertex_array_object_id = -1;
+	printf("%d\n", g_vertex_array_object_id);
 
-	glm::mat4 viewProjectionMatrix;
-
-	glFrontFace(GL_CCW);
+	glFrontFace(GL_CW);
 	glEnable(GL_CULL_FACE);
 
     while (!glfwWindowShouldClose(window)) {
@@ -205,11 +212,11 @@ int main( int argc, char** argv )
 
 		static int ini = 0;
         glm::vec4 camera_position_c;
-        if (!ini) {
+        if (!ini || g_ResetCamera) {
             camera_position_c = glm::vec4(x,y,z,1.0f);
             ini = 1;
+			g_ResetCamera = false;
         }
-
 		
 		glm::vec4 cameraTarget = glm::vec4(0.0f,0.0f,0.0f,1.0f);
 		glm::vec4 cameraView = cameraTarget - glm::vec4(x,y,z,1.0f);
@@ -241,27 +248,28 @@ int main( int argc, char** argv )
 		float aspectRatio = g_ScreenRatio;
 		
 		float nearPlane = -0.1f;
-		float farPlane = -10.0f;
+		float farPlane = -100.0f;
 		
 		glm::mat4 projectionMatrix = Matrix_Perspective(FOV, g_ScreenRatio, nearPlane, farPlane);
 		
 		glUniformMatrix4fv(viewMatrixLocation, 1 , GL_FALSE , glm::value_ptr(viewMatrix));
 		glUniformMatrix4fv(projectionMatrixLocation, 1 , GL_FALSE , glm::value_ptr(projectionMatrix));
 
-        glBindVertexArray(vertex_array_object_id);
+		if (g_vertex_array_object_id != -1) {
+			glBindVertexArray(g_vertex_array_object_id);
 
-	//	glm::vec3 objectScale = glm::vec3(2.0f, 0.5f, 1.0f);
-		glm::mat4 modelMatrix = glm::mat4(1.0f);
-//		modelMatrix = glm::scale(modelMatrix, objectScale);
+			glm::vec3 objectScale = glm::vec3(0.01f, 0.01f, 0.01f);
+			glm::mat4 modelMatrix = glm::mat4(1.0f);
+			modelMatrix = glm::scale(modelMatrix, objectScale);
 
-		glDrawElements(
-			g_VirtualScene["cube"].rendering_mode,
-			g_VirtualScene["cube"].num_indices,
-			GL_UNSIGNED_INT,
-			(void*)g_VirtualScene["cube"].first_index
-		);		
-		glUniformMatrix4fv(modelMatrixLocation, 1, GL_FALSE, glm::value_ptr(modelMatrix));
-
+			glDrawElements(
+				g_VirtualScene["model"].rendering_mode,
+				g_VirtualScene["model"].num_indices,
+				GL_UNSIGNED_INT,
+				(void*)g_VirtualScene["model"].first_index
+			);		
+			glUniformMatrix4fv(modelMatrixLocation, 1, GL_FALSE, glm::value_ptr(modelMatrix));
+		}
 
         glfwSwapBuffers(window);
         glfwPollEvents();
@@ -481,11 +489,11 @@ GLuint BuildTriangles(ModelObject model)
 	}
 
     SceneObject cube_faces;
-    cube_faces.name           = "cube";
+    cube_faces.name           = "model";
     cube_faces.first_index    = (void*)0; // Primeiro índice está em indices[0]
     cube_faces.num_indices    =  model.num_triangles * 3;       // Último índice está em indices[35]; total de 36 índices.
     cube_faces.rendering_mode = GL_TRIANGLES; // Índices correspondem ao tipo de rasterização GL_TRIANGLES.
-	g_VirtualScene["cube"] = cube_faces;
+	g_VirtualScene["model"] = cube_faces;
 	
 	GLuint indices_id;
 	glGenBuffers(1, &indices_id);
@@ -502,8 +510,7 @@ void ErrorCallback(int error, const char *description)
 	fprintf(stderr, "ERROR: GLFW %s\n", description);
 }
 
-void KeyCallback(GLFWwindow *window,
-                                    int key, int scancode, int action, int mod)
+void KeyCallback(GLFWwindow *window, int key, int scancode, int action, int mod)
 {
 	if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS) {
 		glfwSetWindowShouldClose(window, GL_TRUE);
@@ -557,10 +564,7 @@ void KeyCallback(GLFWwindow *window,
 			g_CameraTheta = 0.0f;
 			g_CameraPhi = 0.0f;
 			g_CameraDistance = 2.5f;
-		/*	float r = g_CameraDistance;
-			float y = r*sin(g_CameraPhi);
-			float z = r*cos(g_CameraPhi)*cos(g_CameraTheta);
-			float x = r*cos(g_CameraPhi)*sin(g_CameraTheta); */
+			g_ResetCamera = true;
 		}
     }
 }
@@ -707,6 +711,37 @@ GLuint CreateGpuProgram(GLuint vertex_shader_id, GLuint fragment_shader_id)
 	return program_id;
 }
 
+int openFile(HWND hWnd)
+{
+	printf("TESTE\n");
+    OPENFILENAME ofn;
+    ZeroMemory(&ofn, sizeof(OPENFILENAME));
+
+    ofn.lStructSize = sizeof(OPENFILENAME);
+    ofn.hwndOwner = hWnd;
+    ofn.lpstrFile = g_ModelFilename;
+    ofn.lpstrFile[0] = '\0';
+    ofn.nMaxFile = FILENAME_MAX * 2;
+    ofn.lpstrFilter = "Model Files (.in)\0*.IN\0";
+    ofn.nFilterIndex = 1;
+    ofn.Flags = OFN_FILEMUSTEXIST;
+
+    GetOpenFileName(&ofn);
+
+    if (!g_ModelFilename[0]) {
+        return 0;
+    }
+    
+    FILE *file;
+    if (!(file = fopen(g_ModelFilename, "r"))) {
+        MessageBox(NULL, "File not found!", "ERROR", MB_OK);
+        return -1;
+    }
+    fclose(file);
+
+    return 1;
+}
+
 LRESULT CALLBACK WindowProcedure(HWND hWnd, UINT msg, WPARAM wp, LPARAM lp)
 {
 	int val;
@@ -722,6 +757,17 @@ LRESULT CALLBACK WindowProcedure(HWND hWnd, UINT msg, WPARAM wp, LPARAM lp)
 				exit(0);
 			}
 			break;
+		  case PROC_OPEN_FILE:
+		    if (openFile(hWnd)) {
+				printf("opening file");
+				FILE *file;
+				if (!(file = fopen(g_ModelFilename, "r"))) {
+					MessageBox(NULL, "Arquivo nao encontrado!", "ERRO", MB_OK);
+					return -1;
+				}
+				g_Model = ReadModelFile(g_ModelFilename);
+				g_vertex_array_object_id = BuildTriangles(g_Model);
+			}
 		}
 		break;
 	  case WM_DESTROY:
@@ -749,13 +795,18 @@ void AddMenus(HWND hWnd, HMENU hMenu)
 	SetMenu(hWnd, hMenu);
 }
 
-glm::mat4 camera(float Translate, glm::vec2 const & Rotate)
+void AddControls(HWND hWnd)
 {
-	glm::mat4 Projection = glm::perspective(glm::radians(45.0f), 4.0f / 3.0f, 0.1f, 100.f);
-	glm::mat4 View = glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 0.0f, -Translate));
-	View = glm::rotate(View, Rotate.y, glm::vec3(-1.0f, 0.0f, 0.0f));
-	View = glm::rotate(View, Rotate.x, glm::vec3(0.0f, 1.0f, 0.0f));
-	glm::mat4 Model = glm::scale(glm::mat4(1.0f), glm::vec3(0.5f));
-	
-	return Projection * View * Model;
+    CreateWindowW(
+        L"BUTTON",
+        L"OPEN MODEL",      // Button text 
+        WS_TABSTOP | WS_VISIBLE | WS_CHILD | BS_DEFPUSHBUTTON,
+        20,         // x position 
+        20,         // y position 
+        200,        // Button width
+        25,        // Button height
+        hWnd,     // Parent window
+        (HMENU)PROC_OPEN_FILE, // procedure
+        (HINSTANCE)GetWindowLongPtr(hWnd, GWLP_HINSTANCE),
+        NULL);
 }
