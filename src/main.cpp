@@ -34,6 +34,8 @@
 #define PROC_INFO_MENU 1
 #define PROC_EXIT_MENU 2
 #define PROC_OPEN_FILE 3
+#define PROC_TOGGLE_CW 4
+#define PROC_TOGGLE_CCW 4
 
 struct TriangleVertex {
 	glm::vec3 pos;
@@ -85,6 +87,8 @@ bool g_D_pressed = false;
 char g_ModelFilename[FILENAME_MAX];
 ModelObject g_Model;
 GLuint g_vertex_array_object_id;
+HWND w_toggleCW = NULL;
+HWND w_toggleCCW = NULL;
 
 // callback functions
 void ErrorCallback(int error, const char *description);
@@ -246,7 +250,7 @@ int main( int argc, char** argv )
 		
 		glm::mat4 viewMatrix = Matrix_Camera_View(camera_position_c, cameraView, cameraUp);		
 		
-		float FOV = 3.141592 / 2;
+		float FOV = 3.141592 / 4;
 		float aspectRatio = g_ScreenRatio;
 		
 		float nearPlane = -0.1f;
@@ -271,7 +275,7 @@ int main( int argc, char** argv )
 			glBindVertexArray(g_vertex_array_object_id);
 			
 			glm::vec3 objectTranslate = glm::vec3(-trans_x, -trans_y, -trans_z);
-			glm::vec3 objectScale = glm::vec3(5.0f / scaling_factor, 5.0f / scaling_factor, 5.0f / scaling_factor);
+			glm::vec3 objectScale = glm::vec3(2.0f / scaling_factor, 2.0f / scaling_factor, 2.0f / scaling_factor);
 			glm::mat4 modelMatrix = glm::mat4(1.0f);
 			modelMatrix = glm::scale(modelMatrix, objectScale);
 			modelMatrix = glm::translate(modelMatrix, objectTranslate);
@@ -330,7 +334,6 @@ ModelObject ReadModelFile(char *filename)
 	while (ch != '\n') {
 		fscanf(fp, "%c", &ch);
 	}
-	printf("Reading in %s (%d triangles)...\n", filename, model.num_triangles);
 	
 	model.triangles = (Triangle*)calloc(model.num_triangles, sizeof(Triangle));
 	
@@ -532,10 +535,6 @@ GLuint BuildTriangles(ModelObject model)
 	sceneModel.max_coord      = max_coord;
 	g_VirtualScene["model"] = sceneModel;
 	
-	printf("x: %f %f\t%f\n", min_coord.x, max_coord.x, max_coord.x - min_coord.x);
-	printf("y: %f %f\t%f\n", min_coord.y, max_coord.y, max_coord.y - min_coord.y);
-	printf("z: %f %f\t%f\n", min_coord.z, max_coord.z, max_coord.z - min_coord.z);
-	
 	GLuint indices_id;
 	glGenBuffers(1, &indices_id);
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, indices_id);
@@ -659,7 +658,6 @@ void FramebufferSizeCallback(GLFWwindow *window, int width, int height)
 {
 	glViewport(0, 0, width, height);
     g_ScreenRatio = (float)width / height;
-	printf("%f\n", g_ScreenRatio);
 }
 
 void LoadShader(const char *filename, GLuint shader_id)
@@ -754,7 +752,6 @@ GLuint CreateGpuProgram(GLuint vertex_shader_id, GLuint fragment_shader_id)
 
 int openFile(HWND hWnd)
 {
-	printf("TESTE\n");
     OPENFILENAME ofn;
     ZeroMemory(&ofn, sizeof(OPENFILENAME));
 
@@ -809,6 +806,15 @@ LRESULT CALLBACK WindowProcedure(HWND hWnd, UINT msg, WPARAM wp, LPARAM lp)
 				g_Model = ReadModelFile(g_ModelFilename);
 				g_vertex_array_object_id = BuildTriangles(g_Model);
 			}
+			break;
+		  case PROC_TOGGLE_CW:
+			int checkedState = SendMessageW(w_toggleCW, BM_GETCHECK, 0, 0);
+			if (checkedState == BST_CHECKED) {
+				glFrontFace(GL_CW);
+			} else if (checkedState == BST_UNCHECKED) {
+				glFrontFace(GL_CCW);
+			}
+		    break;
 		}
 		break;
 	  case WM_DESTROY:
@@ -850,4 +856,26 @@ void AddControls(HWND hWnd)
         (HMENU)PROC_OPEN_FILE, // procedure
         (HINSTANCE)GetWindowLongPtr(hWnd, GWLP_HINSTANCE),
         NULL);
+	
+	w_toggleCW = CreateWindowW(
+		L"BUTTON",
+		L"CW",
+		WS_CHILD | WS_VISIBLE | BS_AUTORADIOBUTTON,
+		20, 60,
+		100, 25,
+		hWnd,
+		(HMENU)PROC_TOGGLE_CW,
+		(HINSTANCE)GetWindowLongPtr(hWnd, GWLP_HINSTANCE),
+		NULL);
+	w_toggleCCW = CreateWindowW(
+		L"BUTTON",
+		L"CCW",
+		WS_CHILD | WS_VISIBLE | BS_AUTORADIOBUTTON,
+		20, 90,
+		100, 25,
+		hWnd,
+		(HMENU)PROC_TOGGLE_CCW,
+		(HINSTANCE)GetWindowLongPtr(hWnd, GWLP_HINSTANCE),
+		NULL);
+	
 }
