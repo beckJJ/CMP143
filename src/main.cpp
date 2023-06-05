@@ -31,7 +31,29 @@
 #define PROC_INFO_MENU 1
 #define PROC_EXIT_MENU 2
 
+struct TriangleVertex {
+	glm::vec3 pos;
+	glm::vec3 normal;
+	glm::vec3 color;
+};
 
+struct Triangle {
+	TriangleVertex v0;
+	TriangleVertex v1;
+	TriangleVertex v2;
+	glm::vec3 face_normal;
+};
+
+struct ModelObject {
+	char name[256];
+	int num_triangles;
+	int material_count;
+	glm::vec3 *ambient_color;
+	glm::vec3 *diffuse_color;
+	glm::vec3 *specular_color;
+	float *material_shine;
+	Triangle *triangles;
+};
 
 struct SceneObject {
     const char*  name;        
@@ -45,6 +67,7 @@ bool g_LeftMouseButtonPressed = false;
 float g_ScreenRatio;
 double g_LastCursorPosX, g_LastCursorPosY;
 std::map<const char*, SceneObject> g_VirtualScene;
+glm::vec2 g_CameraRotation;
 
 // callback functions
 void ErrorCallback(int error, const char *description);
@@ -61,7 +84,8 @@ GLuint LoadShader_Vertex(const char *filename);
 GLuint LoadShader_Fragment(const char *filename);
 GLuint CreateGpuProgram(GLuint vertex_shader_id, GLuint fragment_shader_id);
 
-GLuint BuildTriangles();
+GLuint BuildTriangles(ModelObject model);
+ModelObject ReadModelFile(char *filename);
 
 // windows.h functions
 LRESULT CALLBACK WindowProcedure(HWND hWnd, UINT msg, WPARAM wp, LPARAM lp);
@@ -142,46 +166,45 @@ int main( int argc, char** argv )
 	GLuint fragment_shader_id = LoadShader_Fragment("../triangles.frag");
 	GLuint program_id = CreateGpuProgram(vertex_shader_id, fragment_shader_id);
 
+	char filename[] = "../cow_up.in";
+	ModelObject model = ReadModelFile(filename);
+	GLuint vertex_array_object_id = BuildTriangles(model);
 
-	GLuint vertex_array_object_id = BuildTriangles();
+	glm::mat4 viewProjectionMatrix;
+	g_CameraRotation = glm::vec2(0.0f,0.0f);
+	
+	float camera_distance = 100.0f;
 
+	glFrontFace(GL_CCW);
+	//glEnable(GL_CULL_FACE);
 
 
     while (!glfwWindowShouldClose(window)) {
-		
-		glm::mat4 viewMatrix;
-		glm::mat4 projectionMatrix;
 
-		// Set up camera parameters
-		glm::vec3 cameraPosition = glm::vec3(0.0f, 0.0f, 3.0f);
-		glm::vec3 cameraTarget = glm::vec3(0.0f, 0.0f, 0.0f);
-		glm::vec3 cameraUp = glm::vec3(0.0f, 1.0f, 0.0f);
-
-		// Create the view matrix
-		viewMatrix = glm::lookAt(cameraPosition, cameraTarget, cameraUp);
-		float FOV = 45.0f;
-		float aspectRatio = 800.0f / 600.0f;
-		float nearPlane = 0.1f;
-		float farPlane = 100.0f;
-		projectionMatrix = glm::perspective(glm::radians(FOV), aspectRatio, nearPlane, farPlane);
-		glm::mat4 viewProjectionMatrix = projectionMatrix * viewMatrix;
-		
-		GLint viewProjectionMatrixLoc = glGetUniformLocation(program_id, "viewProjectionMatrix");
 		glUseProgram(program_id);
-		glUniformMatrix4fv(viewProjectionMatrixLoc, 1, GL_FALSE, glm::value_ptr(viewProjectionMatrix));
-		
         static const float background[] = { 1.0f, 1.0f, 1.0f, 0.0f };
 
         glClearBufferfv(GL_COLOR, 0, background);
 
-        glBindVertexArray(vertex_array_object_id);
+		g_CameraRotation += glm::vec2(-0.01f,0.0f);
+		camera_distance += 10.0f;
+		viewProjectionMatrix = camera(camera_distance, g_CameraRotation);
 		
+		GLint viewProjectionMatrixLoc = glGetUniformLocation(program_id, "viewProjectionMatrix");
+
+		glUniformMatrix4fv(viewProjectionMatrixLoc, 1, GL_FALSE, glm::value_ptr(viewProjectionMatrix));
+		
+
+        glBindVertexArray(vertex_array_object_id);
+
 		glDrawElements(
-			g_VirtualScene["triangulo"].rendering_mode,
-			g_VirtualScene["triangulo"].num_indices,
+			g_VirtualScene["cube"].rendering_mode,
+			g_VirtualScene["cube"].num_indices,
 			GL_UNSIGNED_INT,
-			(void*)g_VirtualScene["triangulo"].first_index
+			(void*)g_VirtualScene["cube"].first_index
 		);
+		
+		
 
         glfwSwapBuffers(window);
         glfwPollEvents();
@@ -193,14 +216,139 @@ int main( int argc, char** argv )
 	return 0;
 }
 
-GLuint BuildTriangles()
+ModelObject ReadModelFile(char *filename)
 {
-	GLfloat  model_coefficients[] = {
-	//     X       Y        Z      W
-		-0.90f, -0.90f ,  0.0f , 1.0f,
-		 0.85f, -0.90f ,  0.0f , 1.0f,
-		-0.90f,  0.85f ,  0.0f , 1.0f // Triangle 1
-    };
+	ModelObject model;
+	
+	FILE *fp = fopen(filename,"r");
+	if (!fp) {
+		printf("ERROR: unable to open file [%s]!\n", filename);
+		exit(0);
+	}
+	char objname[256] = { 0 };
+	fscanf(fp, "Object name = %s\n", &model.name);
+	fscanf(fp, "# triangles = %d\n", &model.num_triangles);
+	fscanf(fp, "Material count = %d\n", &model.material_count);
+	
+	model.ambient_color = (glm::vec3*)calloc(model.material_count, sizeof(glm::vec3));
+	model.diffuse_color = (glm::vec3*)calloc(model.material_count, sizeof(glm::vec3));
+	model.specular_color = (glm::vec3*)calloc(model.material_count, sizeof(glm::vec3));
+	model.material_shine = (float*)calloc(model.material_count, sizeof(float));
+	
+	for (int i = 0; i < model.material_count; i++) {
+		fscanf(fp, "ambient color %f %f %f\n", &model.ambient_color[i].x,
+											   &model.ambient_color[i].y,
+											   &model.ambient_color[i].z);
+		fscanf(fp, "diffuse color %f %f %f\n", &model.diffuse_color[i].x,
+											   &model.diffuse_color[i].y,
+											   &model.diffuse_color[i].z);
+		fscanf(fp, "specular color %f %f %f\n", &model.specular_color[i].x,
+												&model.specular_color[i].y,
+												&model.specular_color[i].z);
+		fscanf(fp, "material shine %f\n", &model.material_shine[i]);
+	}
+	char ch;
+	while (ch != '\n') {
+		fscanf(fp, "%c", &ch);
+	}
+	printf("Reading in %s (%d triangles)...\n", filename, model.num_triangles);
+	
+	model.triangles = (Triangle*)calloc(model.num_triangles, sizeof(Triangle));
+	
+	for (int i = 0; i < model.num_triangles; i++) {
+		int color_index;
+		fscanf(fp, "v0 %f %f %f %f %f %f %d\n",
+				&model.triangles[i].v0.pos.x,
+				&model.triangles[i].v0.pos.y,
+				&model.triangles[i].v0.pos.z,
+				&model.triangles[i].v0.normal.x,
+				&model.triangles[i].v0.normal.y,
+				&model.triangles[i].v0.normal.z,
+				&color_index);
+		model.triangles[i].v0.color.x =
+			(unsigned char)(int)(255*(model.diffuse_color[color_index].x));
+		model.triangles[i].v0.color.y =
+			(unsigned char)(int)(255*(model.diffuse_color[color_index].y));
+		model.triangles[i].v0.color.z =
+			(unsigned char)(int)(255*(model.diffuse_color[color_index].z));
+
+		fscanf(fp, "v1 %f %f %f %f %f %f %d\n",
+				&model.triangles[i].v1.pos.x,
+				&model.triangles[i].v1.pos.y,
+				&model.triangles[i].v1.pos.z,
+				&model.triangles[i].v1.normal.x,
+				&model.triangles[i].v1.normal.y,
+				&model.triangles[i].v1.normal.z,
+				&color_index);
+		model.triangles[i].v1.color.x =
+			(unsigned char)(int)(255*(model.diffuse_color[color_index].x));
+		model.triangles[i].v1.color.y =
+			(unsigned char)(int)(255*(model.diffuse_color[color_index].y));
+		model.triangles[i].v1.color.z =
+			(unsigned char)(int)(255*(model.diffuse_color[color_index].z));
+				
+		fscanf(fp, "v2 %f %f %f %f %f %f %d\n",
+				&model.triangles[i].v2.pos.x,
+				&model.triangles[i].v2.pos.y,
+				&model.triangles[i].v2.pos.z,
+				&model.triangles[i].v2.normal.x,
+				&model.triangles[i].v2.normal.y,
+				&model.triangles[i].v2.normal.z,
+				&color_index);
+		model.triangles[i].v2.color.x =
+			(unsigned char)(int)(255*(model.diffuse_color[color_index].x));
+		model.triangles[i].v2.color.y =
+			(unsigned char)(int)(255*(model.diffuse_color[color_index].y));
+		model.triangles[i].v2.color.z =
+			(unsigned char)(int)(255*(model.diffuse_color[color_index].z));	
+				
+		fscanf(fp, "face normal %f %f %f\n",
+				&model.triangles[i].face_normal.x,
+				&model.triangles[i].face_normal.y,
+				&model.triangles[i].face_normal.z);
+	}
+
+	fclose(fp);
+	return model;
+}
+
+GLuint BuildTriangles(ModelObject model)
+{
+	GLfloat model_coefficients[model.num_triangles * 3 * 4];	
+	int j = 0;
+	for (int i = 0; i < model.num_triangles; i++) {
+		Triangle triangle = model.triangles[i];
+		// v0
+		// X
+		model_coefficients[j]   = triangle.v0.pos.x;
+		// Y
+		model_coefficients[j+1] = triangle.v0.pos.y;
+		// Z
+		model_coefficients[j+2] = triangle.v0.pos.z;
+		// W
+		model_coefficients[j+3] = 1.0f;
+		j+=4;
+		// v1
+		// X
+		model_coefficients[j]   = triangle.v1.pos.x;
+		// Y
+		model_coefficients[j+1] = triangle.v1.pos.y;
+		// Z
+		model_coefficients[j+2] = triangle.v1.pos.z;
+		// W
+		model_coefficients[j+3] = 1.0f;
+		j+=4;
+		// v2
+		// X
+		model_coefficients[j]   = triangle.v2.pos.x;
+		// Y
+		model_coefficients[j+1] = triangle.v2.pos.y;
+		// Z
+		model_coefficients[j+2] = triangle.v2.pos.z;
+		// W
+		model_coefficients[j+3] = 1.0f;
+		j+=4;
+	}	
 	GLuint VBO_model_coefficients_id;
 	glGenBuffers(1, &VBO_model_coefficients_id);
 	
@@ -219,10 +367,44 @@ GLuint BuildTriangles()
 	glBindBuffer(GL_ARRAY_BUFFER, 0);
 	
     GLfloat color_coefficients[] = {
+    // Cores dos vértices do cubo
     //  R     G     B     A
-        1.0f, 0.0f, 0.0f, 1.0f,
-        0.0f, 1.0f, 0.0f, 1.0f,
-        0.0f, 0.0f, 1.0f, 1.0f
+        1.0f, 0.5f, 0.0f, 1.0f, // cor do vértice 0
+        1.0f, 0.5f, 0.0f, 1.0f, // cor do vértice 1
+        0.0f, 0.5f, 1.0f, 1.0f, // cor do vértice 2
+        0.0f, 0.5f, 1.0f, 1.0f, // cor do vértice 3
+        1.0f, 0.5f, 0.0f, 1.0f, // cor do vértice 4
+        1.0f, 0.5f, 0.0f, 1.0f, // cor do vértice 5
+        0.0f, 0.5f, 1.0f, 1.0f, // cor do vértice 6
+        0.0f, 0.5f, 1.0f, 1.0f, // cor do vértice 7
+        1.0f, 0.5f, 0.0f, 1.0f, // cor do vértice 0
+        1.0f, 0.5f, 0.0f, 1.0f, // cor do vértice 1
+        0.0f, 0.5f, 1.0f, 1.0f, // cor do vértice 2
+        0.0f, 0.5f, 1.0f, 1.0f, // cor do vértice 3
+        1.0f, 0.5f, 0.0f, 1.0f, // cor do vértice 4
+        1.0f, 0.5f, 0.0f, 1.0f, // cor do vértice 5
+        0.0f, 0.5f, 1.0f, 1.0f, // cor do vértice 6
+        0.0f, 0.5f, 1.0f, 1.0f, // cor do vértice 7
+        1.0f, 0.5f, 0.0f, 1.0f, // cor do vértice 0
+        1.0f, 0.5f, 0.0f, 1.0f, // cor do vértice 1
+        0.0f, 0.5f, 1.0f, 1.0f, // cor do vértice 2
+        0.0f, 0.5f, 1.0f, 1.0f, // cor do vértice 3
+        1.0f, 0.5f, 0.0f, 1.0f, // cor do vértice 4
+        1.0f, 0.5f, 0.0f, 1.0f, // cor do vértice 5
+        0.0f, 0.5f, 1.0f, 1.0f, // cor do vértice 6
+        0.0f, 0.5f, 1.0f, 1.0f, // cor do vértice 7
+        1.0f, 0.5f, 0.0f, 1.0f, // cor do vértice 0
+        1.0f, 0.5f, 0.0f, 1.0f, // cor do vértice 1
+        0.0f, 0.5f, 1.0f, 1.0f, // cor do vértice 2
+        0.0f, 0.5f, 1.0f, 1.0f, // cor do vértice 3
+        1.0f, 0.5f, 0.0f, 1.0f, // cor do vértice 4
+        1.0f, 0.5f, 0.0f, 1.0f, // cor do vértice 5
+        0.0f, 0.5f, 1.0f, 1.0f, // cor do vértice 6
+        0.0f, 0.5f, 1.0f, 1.0f, // cor do vértice 7
+        1.0f, 0.5f, 0.0f, 1.0f, // cor do vértice 0
+        1.0f, 0.5f, 0.0f, 1.0f, // cor do vértice 1
+        0.0f, 0.5f, 1.0f, 1.0f, // cor do vértice 2
+        0.0f, 0.5f, 1.0f, 1.0f, // cor do vértice 3
     };
     GLuint VBO_color_coefficients_id;
     glGenBuffers(1, &VBO_color_coefficients_id);
@@ -236,17 +418,17 @@ GLuint BuildTriangles()
     glBindBuffer(GL_ARRAY_BUFFER, 0);
 	
 	
-	GLuint indices[] = {
-		0, 1, 2 // triângulo 1
-	};
-	
-	SceneObject triangulo;
-	triangulo.name = "Triangulo";
-	triangulo.first_index = (void*)0;
-	triangulo.num_indices = 3;
-	triangulo.rendering_mode = GL_TRIANGLES;
-	
-	g_VirtualScene["triangulo"] = triangulo;
+	GLuint indices[model.num_triangles * 3];
+	for (int i = 0; i < model.num_triangles * 3; i++) {
+		indices[i] = i;
+	}
+
+    SceneObject cube_faces;
+    cube_faces.name           = "cube";
+    cube_faces.first_index    = (void*)0; // Primeiro índice está em indices[0]
+    cube_faces.num_indices    =  model.num_triangles * 3;       // Último índice está em indices[35]; total de 36 índices.
+    cube_faces.rendering_mode = GL_TRIANGLES; // Índices correspondem ao tipo de rasterização GL_TRIANGLES.
+	g_VirtualScene["cube"] = cube_faces;
 	
 	GLuint indices_id;
 	glGenBuffers(1, &indices_id);
