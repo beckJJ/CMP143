@@ -13,6 +13,7 @@
 #include <map>
 
 #include <math.h>
+#include <float.h>
 
 #include "matrices.h"
 
@@ -44,25 +45,27 @@ struct Triangle {
 	TriangleVertex v0;
 	TriangleVertex v1;
 	TriangleVertex v2;
-	glm::vec3 face_normal;
+	glm::vec3      face_normal;
 };
 
 struct ModelObject {
-	char name[256];
-	int num_triangles;
-	int material_count;
+	char       name[256];
+	int        num_triangles;
+	int        material_count;
 	glm::vec3 *ambient_color;
 	glm::vec3 *diffuse_color;
 	glm::vec3 *specular_color;
-	float *material_shine;
-	Triangle *triangles;
+	float     *material_shine;
+	Triangle  *triangles;
 };
 
 struct SceneObject {
-    const char*  name;        
-    void*        first_index; 
-    int          num_indices; 
-    GLenum       rendering_mode;
+    const char *name;        
+    void       *first_index; 
+    int         num_indices; 
+    GLenum      rendering_mode;
+	glm::vec3   min_coord;
+	glm::vec3   max_coord;
 };
 
 // global variables
@@ -70,9 +73,9 @@ bool g_LeftMouseButtonPressed = false;
 float g_ScreenRatio;
 double g_LastCursorPosX, g_LastCursorPosY;
 std::map<const char*, SceneObject> g_VirtualScene;
-float g_CameraTheta = 0.0f; // Ângulo no plano ZX em relação ao eixo Z
-float g_CameraPhi = 0.0f;   // Ângulo em relação ao eixo Y
-float g_CameraDistance = 2.5f; // Distância da câmera para a origem
+float g_CameraTheta = 0.0f;
+float g_CameraPhi = 0.0f;
+float g_CameraDistance = 2.5f;
 bool g_ResetCamera = false;
 bool g_W_pressed = false;
 bool g_A_pressed = false;
@@ -193,7 +196,6 @@ int main( int argc, char** argv )
     GLint projectionMatrixLocation = glGetUniformLocation(program_id, "projectionMatrix");
 
 	g_vertex_array_object_id = -1;
-	printf("%d\n", g_vertex_array_object_id);
 
 	glFrontFace(GL_CW);
 	glEnable(GL_CULL_FACE);
@@ -256,11 +258,23 @@ int main( int argc, char** argv )
 		glUniformMatrix4fv(projectionMatrixLocation, 1 , GL_FALSE , glm::value_ptr(projectionMatrix));
 
 		if (g_vertex_array_object_id != -1) {
+			
+			float trans_x = (g_VirtualScene["model"].min_coord.x + g_VirtualScene["model"].max_coord.x) / 2;
+			float trans_y = (g_VirtualScene["model"].min_coord.y + g_VirtualScene["model"].max_coord.y) / 2;
+			float trans_z = (g_VirtualScene["model"].min_coord.z + g_VirtualScene["model"].max_coord.z) / 2;
+			float size_x = (g_VirtualScene["model"].max_coord.x - g_VirtualScene["model"].min_coord.x);
+			float size_y = (g_VirtualScene["model"].max_coord.y - g_VirtualScene["model"].min_coord.y);
+			float size_z = (g_VirtualScene["model"].max_coord.z - g_VirtualScene["model"].min_coord.z);
+			float scaling_factor = size_x;
+			scaling_factor = (size_y > scaling_factor) ? size_y : scaling_factor;
+			scaling_factor = (size_z > scaling_factor) ? size_z : scaling_factor;
 			glBindVertexArray(g_vertex_array_object_id);
-
-			glm::vec3 objectScale = glm::vec3(0.01f, 0.01f, 0.01f);
+			
+			glm::vec3 objectTranslate = glm::vec3(-trans_x, -trans_y, -trans_z);
+			glm::vec3 objectScale = glm::vec3(5.0f / scaling_factor, 5.0f / scaling_factor, 5.0f / scaling_factor);
 			glm::mat4 modelMatrix = glm::mat4(1.0f);
 			modelMatrix = glm::scale(modelMatrix, objectScale);
+			modelMatrix = glm::translate(modelMatrix, objectTranslate);
 
 			glDrawElements(
 				g_VirtualScene["model"].rendering_mode,
@@ -379,6 +393,9 @@ ModelObject ReadModelFile(char *filename)
 
 GLuint BuildTriangles(ModelObject model)
 {
+	glm::vec3 min_coord = glm::vec3(FLT_MAX, FLT_MAX, FLT_MAX);
+	glm::vec3 max_coord = glm::vec3(FLT_MIN, FLT_MIN, FLT_MIN);
+	
 	GLfloat model_coefficients[model.num_triangles * 3 * 4];	
 	int j = 0;
 	for (int i = 0; i < model.num_triangles; i++) {
@@ -386,30 +403,48 @@ GLuint BuildTriangles(ModelObject model)
 		// v0
 		// X
 		model_coefficients[j]   = triangle.v0.pos.x;
+		min_coord.x = (model_coefficients[j] < min_coord.x) ? model_coefficients[j] : min_coord.x;
+		max_coord.x = (model_coefficients[j] > max_coord.x) ? model_coefficients[j] : max_coord.x;
 		// Y
 		model_coefficients[j+1] = triangle.v0.pos.y;
+		min_coord.y = (model_coefficients[j+1] < min_coord.y) ? model_coefficients[j+1] : min_coord.y;
+		max_coord.y = (model_coefficients[j+1] > max_coord.y) ? model_coefficients[j+1] : max_coord.y;
 		// Z
 		model_coefficients[j+2] = triangle.v0.pos.z;
+		min_coord.z = (model_coefficients[j+2] < min_coord.z) ? model_coefficients[j+2] : min_coord.z;
+		max_coord.z = (model_coefficients[j+2] > max_coord.z) ? model_coefficients[j+2] : max_coord.z;
 		// W
 		model_coefficients[j+3] = 1.0f;
 		j+=4;
 		// v1
 		// X
 		model_coefficients[j]   = triangle.v1.pos.x;
+		min_coord.x = (model_coefficients[j] < min_coord.x) ? model_coefficients[j] : min_coord.x;
+		max_coord.x = (model_coefficients[j] > max_coord.x) ? model_coefficients[j] : max_coord.x;
 		// Y
 		model_coefficients[j+1] = triangle.v1.pos.y;
+		min_coord.y = (model_coefficients[j+1] < min_coord.y) ? model_coefficients[j+1] : min_coord.y;
+		max_coord.y = (model_coefficients[j+1] > max_coord.y) ? model_coefficients[j+1] : max_coord.y;
 		// Z
 		model_coefficients[j+2] = triangle.v1.pos.z;
+		min_coord.z = (model_coefficients[j+2] < min_coord.z) ? model_coefficients[j+2] : min_coord.z;
+		max_coord.z = (model_coefficients[j+2] > max_coord.z) ? model_coefficients[j+2] : max_coord.z;
 		// W
 		model_coefficients[j+3] = 1.0f;
 		j+=4;
 		// v2
 		// X
 		model_coefficients[j]   = triangle.v2.pos.x;
+		min_coord.x = (model_coefficients[j] < min_coord.x) ? model_coefficients[j] : min_coord.x;
+		max_coord.x = (model_coefficients[j] > max_coord.x) ? model_coefficients[j] : max_coord.x;
 		// Y
 		model_coefficients[j+1] = triangle.v2.pos.y;
+		min_coord.y = (model_coefficients[j+1] < min_coord.y) ? model_coefficients[j+1] : min_coord.y;
+		max_coord.y = (model_coefficients[j+1] > max_coord.y) ? model_coefficients[j+1] : max_coord.y;
 		// Z
 		model_coefficients[j+2] = triangle.v2.pos.z;
+		min_coord.z = (model_coefficients[j+2] < min_coord.z) ? model_coefficients[j+2] : min_coord.z;
+		max_coord.z = (model_coefficients[j+2] > max_coord.z) ? model_coefficients[j+2] : max_coord.z;
 		// W
 		model_coefficients[j+3] = 1.0f;
 		j+=4;
@@ -488,12 +523,18 @@ GLuint BuildTriangles(ModelObject model)
 		indices[i] = i;
 	}
 
-    SceneObject cube_faces;
-    cube_faces.name           = "model";
-    cube_faces.first_index    = (void*)0; // Primeiro índice está em indices[0]
-    cube_faces.num_indices    =  model.num_triangles * 3;       // Último índice está em indices[35]; total de 36 índices.
-    cube_faces.rendering_mode = GL_TRIANGLES; // Índices correspondem ao tipo de rasterização GL_TRIANGLES.
-	g_VirtualScene["model"] = cube_faces;
+    SceneObject sceneModel;
+    sceneModel.name           = "model";
+    sceneModel.first_index    = (void*)0; // Primeiro índice está em indices[0]
+    sceneModel.num_indices    =  model.num_triangles * 3;       // Último índice está em indices[35]; total de 36 índices.
+    sceneModel.rendering_mode = GL_TRIANGLES; // Índices correspondem ao tipo de rasterização GL_TRIANGLES.
+	sceneModel.min_coord      = min_coord;
+	sceneModel.max_coord      = max_coord;
+	g_VirtualScene["model"] = sceneModel;
+	
+	printf("x: %f %f\t%f\n", min_coord.x, max_coord.x, max_coord.x - min_coord.x);
+	printf("y: %f %f\t%f\n", min_coord.y, max_coord.y, max_coord.y - min_coord.y);
+	printf("z: %f %f\t%f\n", min_coord.z, max_coord.z, max_coord.z - min_coord.z);
 	
 	GLuint indices_id;
 	glGenBuffers(1, &indices_id);
