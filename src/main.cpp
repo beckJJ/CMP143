@@ -14,6 +14,8 @@
 
 #include <math.h>
 
+#include "matrices.h"
+
 #include <Windows.h>
 #include <sdkddkver.h>
 #include <commdlg.h>
@@ -68,6 +70,13 @@ float g_ScreenRatio;
 double g_LastCursorPosX, g_LastCursorPosY;
 std::map<const char*, SceneObject> g_VirtualScene;
 glm::vec2 g_CameraRotation;
+float g_CameraTheta = 0.0f; // Ângulo no plano ZX em relação ao eixo Z
+float g_CameraPhi = 0.0f;   // Ângulo em relação ao eixo Y
+float g_CameraDistance = 2.5f; // Distância da câmera para a origem
+bool g_W_pressed = false;
+bool g_A_pressed = false;
+bool g_S_pressed = false;
+bool g_D_pressed = false;
 
 // callback functions
 void ErrorCallback(int error, const char *description);
@@ -157,6 +166,8 @@ int main( int argc, char** argv )
 	glfwSetCursorPosCallback(window, CursorPosCallback);
 	glfwSetScrollCallback(window, ScrollCallback);
     glfwSetFramebufferSizeCallback(window, FramebufferSizeCallback);
+	glfwSetWindowSize(window, 800, 600);
+	g_ScreenRatio = 800.0f/600.0f;
 	
     glfwMakeContextCurrent(window);
 	
@@ -166,18 +177,19 @@ int main( int argc, char** argv )
 	GLuint fragment_shader_id = LoadShader_Fragment("../triangles.frag");
 	GLuint program_id = CreateGpuProgram(vertex_shader_id, fragment_shader_id);
 
-	char filename[] = "../cow_up.in";
+	char filename[] = "../cube.in";
 	ModelObject model = ReadModelFile(filename);
 	GLuint vertex_array_object_id = BuildTriangles(model);
 
+    GLint modelMatrixLocation = glGetUniformLocation(program_id, "modelMatrix");
+    GLint viewMatrixLocation = glGetUniformLocation(program_id, "viewMatrix");
+    GLint projectionMatrixLocation = glGetUniformLocation(program_id, "projectionMatrix");
+
+
 	glm::mat4 viewProjectionMatrix;
-	g_CameraRotation = glm::vec2(0.0f,0.0f);
-	
-	float camera_distance = 100.0f;
 
 	glFrontFace(GL_CCW);
-	//glEnable(GL_CULL_FACE);
-
+	glEnable(GL_CULL_FACE);
 
     while (!glfwWindowShouldClose(window)) {
 
@@ -186,25 +198,70 @@ int main( int argc, char** argv )
 
         glClearBufferfv(GL_COLOR, 0, background);
 
-		g_CameraRotation += glm::vec2(-0.01f,0.0f);
-		camera_distance += 10.0f;
-		viewProjectionMatrix = camera(camera_distance, g_CameraRotation);
-		
-		GLint viewProjectionMatrixLoc = glGetUniformLocation(program_id, "viewProjectionMatrix");
+        float r = g_CameraDistance;
+        float y = r*sin(g_CameraPhi);
+        float z = r*cos(g_CameraPhi)*cos(g_CameraTheta);
+        float x = r*cos(g_CameraPhi)*sin(g_CameraTheta);
 
-		glUniformMatrix4fv(viewProjectionMatrixLoc, 1, GL_FALSE, glm::value_ptr(viewProjectionMatrix));
+		static int ini = 0;
+        glm::vec4 camera_position_c;
+        if (!ini) {
+            camera_position_c = glm::vec4(x,y,z,1.0f);
+            ini = 1;
+        }
+
 		
+		glm::vec4 cameraTarget = glm::vec4(0.0f,0.0f,0.0f,1.0f);
+		glm::vec4 cameraView = cameraTarget - glm::vec4(x,y,z,1.0f);
+		glm::vec4 cameraUp = glm::vec4(0.0f,1.0f,0.0f,0.0f);
+		
+        glm::vec4 camera_w = -cameraView/norm(cameraView);
+        glm::vec4 camera_u = crossproduct(cameraUp, camera_w);
+        glm::vec4 camera_v = crossproduct(camera_w, camera_u);
+		
+        if (g_W_pressed) {
+            camera_position_c += -camera_w * 0.05f;
+        }
+
+        if (g_S_pressed) {
+            camera_position_c += camera_w * 0.05f;
+        }
+
+        if (g_D_pressed) {
+            camera_position_c += camera_u * 0.05f;
+        }
+
+        if (g_A_pressed) {
+            camera_position_c += -camera_u * 0.05f;
+        }
+		
+		glm::mat4 viewMatrix = Matrix_Camera_View(camera_position_c, cameraView, cameraUp);		
+		
+		float FOV = 3.141592 / 2;
+		float aspectRatio = g_ScreenRatio;
+		
+		float nearPlane = -0.1f;
+		float farPlane = -10.0f;
+		
+		glm::mat4 projectionMatrix = Matrix_Perspective(FOV, g_ScreenRatio, nearPlane, farPlane);
+		
+		glUniformMatrix4fv(viewMatrixLocation, 1 , GL_FALSE , glm::value_ptr(viewMatrix));
+		glUniformMatrix4fv(projectionMatrixLocation, 1 , GL_FALSE , glm::value_ptr(projectionMatrix));
 
         glBindVertexArray(vertex_array_object_id);
+
+	//	glm::vec3 objectScale = glm::vec3(2.0f, 0.5f, 1.0f);
+		glm::mat4 modelMatrix = glm::mat4(1.0f);
+//		modelMatrix = glm::scale(modelMatrix, objectScale);
 
 		glDrawElements(
 			g_VirtualScene["cube"].rendering_mode,
 			g_VirtualScene["cube"].num_indices,
 			GL_UNSIGNED_INT,
 			(void*)g_VirtualScene["cube"].first_index
-		);
-		
-		
+		);		
+		glUniformMatrix4fv(modelMatrixLocation, 1, GL_FALSE, glm::value_ptr(modelMatrix));
+
 
         glfwSwapBuffers(window);
         glfwPollEvents();
@@ -451,6 +508,61 @@ void KeyCallback(GLFWwindow *window,
 	if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS) {
 		glfwSetWindowShouldClose(window, GL_TRUE);
 	}
+	if (key == GLFW_KEY_W) {
+        if (action == GLFW_PRESS) {
+            g_W_pressed = true;
+        }
+        else if (action == GLFW_RELEASE) {
+            g_W_pressed = false;
+        }
+        else if (action == GLFW_REPEAT) {
+        }
+    }
+
+    if (key == GLFW_KEY_A) {
+        if (action == GLFW_PRESS) {
+            g_A_pressed = true;
+        }
+        else if (action == GLFW_RELEASE) {
+            g_A_pressed = false;
+        }
+        else if (action == GLFW_REPEAT) {
+        }
+    }
+
+    if (key == GLFW_KEY_S) {
+        if (action == GLFW_PRESS) {
+            g_S_pressed = true;
+        }
+        else if (action == GLFW_RELEASE) {
+            g_S_pressed = false;
+        }
+        else if (action == GLFW_REPEAT) {
+        }
+    }
+
+    if (key == GLFW_KEY_D) {
+        if (action == GLFW_PRESS) {
+            g_D_pressed = true;
+        }
+        else if (action == GLFW_RELEASE) {
+            g_D_pressed = false;
+        }
+        else if (action == GLFW_REPEAT) {
+        }
+    }
+	
+	if (key == GLFW_KEY_R) {
+        if (action == GLFW_PRESS) {
+			g_CameraTheta = 0.0f;
+			g_CameraPhi = 0.0f;
+			g_CameraDistance = 2.5f;
+		/*	float r = g_CameraDistance;
+			float y = r*sin(g_CameraPhi);
+			float z = r*cos(g_CameraPhi)*cos(g_CameraTheta);
+			float x = r*cos(g_CameraPhi)*sin(g_CameraTheta); */
+		}
+    }
 }
 
 void MouseButtonCallback(GLFWwindow *window, int button, int action, int mods)
@@ -468,7 +580,29 @@ void CursorPosCallback(GLFWwindow *window, double xpos, double ypos)
 {
 	if (!g_LeftMouseButtonPressed) {
 		return;
-	}
+	}	
+	// Deslocamento do cursor do mouse em x e y de coordenadas de tela!
+    float dx = xpos - g_LastCursorPosX;
+    float dy = ypos - g_LastCursorPosY;
+
+    // Atualizamos parâmetros da câmera com os deslocamentos
+    g_CameraTheta -= 0.01f*dx;
+    g_CameraPhi   += 0.01f*dy;
+
+    // Em coordenadas esféricas, o ângulo phi deve ficar entre -pi/2 e +pi/2.
+    float phimax = 3.141592f/2;
+    float phimin = -phimax;
+
+    if (g_CameraPhi > phimax)
+        g_CameraPhi = phimax;
+
+    if (g_CameraPhi < phimin)
+        g_CameraPhi = phimin;
+
+    // Atualizamos as variáveis globais para armazenar a posição atual do
+    // cursor como sendo a última posição conhecida do cursor.
+    g_LastCursorPosX = xpos;
+    g_LastCursorPosY = ypos;
 }
 
 void ScrollCallback(GLFWwindow *window, double xoffset, double yoffset)
@@ -480,6 +614,7 @@ void FramebufferSizeCallback(GLFWwindow *window, int width, int height)
 {
 	glViewport(0, 0, width, height);
     g_ScreenRatio = (float)width / height;
+	printf("%f\n", g_ScreenRatio);
 }
 
 void LoadShader(const char *filename, GLuint shader_id)
