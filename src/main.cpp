@@ -29,13 +29,19 @@
 #define WINVER _NT_TARGET_VERSION_VISTA
 #endif
 
-
 // Windows procedures
 #define PROC_INFO_MENU 1
 #define PROC_EXIT_MENU 2
 #define PROC_OPEN_FILE 3
 #define PROC_TOGGLE_CW 4
 #define PROC_TOGGLE_CCW 4
+#define PROC_NEARPLANE 5
+#define PROC_FARPLANE 6
+#define PROC_RESET_CAMERA 7
+#define PROC_CHANGE_COLOUR 8
+
+#define BUFFER_SIZE 100
+
 
 struct TriangleVertex {
 	glm::vec3 pos;
@@ -78,17 +84,29 @@ std::map<const char*, SceneObject> g_VirtualScene;
 float g_CameraTheta = 0.0f;
 float g_CameraPhi = 0.0f;
 float g_CameraDistance = 2.5f;
+float g_NearPlane = -0.1f;
+float g_FarPlane = -100.0f;
 bool g_ResetCamera = false;
 bool g_W_pressed = false;
 bool g_A_pressed = false;
 bool g_S_pressed = false;
 bool g_D_pressed = false;
+bool g_Q_pressed = false;
+bool g_Z_pressed = false;
+float g_Red = 0.5f;
+float g_Green = 0.5f;
+float g_Blue = 0.5f;
 
 char g_ModelFilename[FILENAME_MAX];
 ModelObject g_Model;
 GLuint g_vertex_array_object_id;
-HWND w_toggleCW = NULL;
-HWND w_toggleCCW = NULL;
+HWND w_ToggleCW = NULL;
+HWND w_ToggleCCW = NULL;
+HWND w_NearPlaneBox = NULL;
+HWND w_FarPlaneBox = NULL;
+HWND w_RedBox = NULL;
+HWND w_GreenBox = NULL;
+HWND w_BlueBox = NULL;
 
 // callback functions
 void ErrorCallback(int error, const char *description);
@@ -142,7 +160,7 @@ int main( int argc, char** argv )
 	HWND hWnd = CreateWindowW(L"WindowClass", L"CMP143",
 						WS_OVERLAPPEDWINDOW | WS_VISIBLE,
 						100, 100,
-						260, 420,
+						310, 420,
 						NULL, NULL, NULL, NULL);				
 	if (!hWnd) {
 		return 0;
@@ -198,6 +216,7 @@ int main( int argc, char** argv )
     GLint modelMatrixLocation = glGetUniformLocation(program_id, "modelMatrix");
     GLint viewMatrixLocation = glGetUniformLocation(program_id, "viewMatrix");
     GLint projectionMatrixLocation = glGetUniformLocation(program_id, "projectionMatrix");
+	GLint colorVectorLocation = glGetUniformLocation(program_id, "colorVector");
 
 	g_vertex_array_object_id = -1;
 
@@ -232,43 +251,49 @@ int main( int argc, char** argv )
         glm::vec4 camera_u = crossproduct(cameraUp, camera_w);
         glm::vec4 camera_v = crossproduct(camera_w, camera_u);
 		
+		// front/back
         if (g_W_pressed) {
-            camera_position_c += -camera_w * 0.05f;
+            camera_position_c -= camera_w * 0.05f;
         }
-
         if (g_S_pressed) {
             camera_position_c += camera_w * 0.05f;
         }
-
+		// left/right
+		if (g_A_pressed) {
+            camera_position_c -= camera_u * 0.05f;
+        }
         if (g_D_pressed) {
             camera_position_c += camera_u * 0.05f;
         }
-
-        if (g_A_pressed) {
-            camera_position_c += -camera_u * 0.05f;
-        }
+		// up/down
+		if (g_Q_pressed) {
+			camera_position_c += camera_v * 0.05f;
+		}
+		if (g_Z_pressed) {
+			camera_position_c -= camera_v * 0.05f;
+		}
+		
 		
 		glm::mat4 viewMatrix = Matrix_Camera_View(camera_position_c, cameraView, cameraUp);		
 		
 		float FOV = 3.141592 / 4;
 		float aspectRatio = g_ScreenRatio;
 		
-		float nearPlane = -0.1f;
-		float farPlane = -100.0f;
-		
-		glm::mat4 projectionMatrix = Matrix_Perspective(FOV, g_ScreenRatio, nearPlane, farPlane);
+		glm::mat4 projectionMatrix = Matrix_Perspective(FOV, g_ScreenRatio, g_NearPlane, g_FarPlane);
 		
 		glUniformMatrix4fv(viewMatrixLocation, 1 , GL_FALSE , glm::value_ptr(viewMatrix));
 		glUniformMatrix4fv(projectionMatrixLocation, 1 , GL_FALSE , glm::value_ptr(projectionMatrix));
 
 		if (g_vertex_array_object_id != -1) {
 			
+			glUniform4f(colorVectorLocation, g_Red, g_Green, g_Blue, 1.0f);
+			
 			float trans_x = (g_VirtualScene["model"].min_coord.x + g_VirtualScene["model"].max_coord.x) / 2;
 			float trans_y = (g_VirtualScene["model"].min_coord.y + g_VirtualScene["model"].max_coord.y) / 2;
 			float trans_z = (g_VirtualScene["model"].min_coord.z + g_VirtualScene["model"].max_coord.z) / 2;
-			float size_x = (g_VirtualScene["model"].max_coord.x - g_VirtualScene["model"].min_coord.x);
-			float size_y = (g_VirtualScene["model"].max_coord.y - g_VirtualScene["model"].min_coord.y);
-			float size_z = (g_VirtualScene["model"].max_coord.z - g_VirtualScene["model"].min_coord.z);
+			float size_x  = (g_VirtualScene["model"].max_coord.x - g_VirtualScene["model"].min_coord.x);
+			float size_y  = (g_VirtualScene["model"].max_coord.y - g_VirtualScene["model"].min_coord.y);
+			float size_z  = (g_VirtualScene["model"].max_coord.z - g_VirtualScene["model"].min_coord.z);
 			float scaling_factor = size_x;
 			scaling_factor = (size_y > scaling_factor) ? size_y : scaling_factor;
 			scaling_factor = (size_z > scaling_factor) ? size_z : scaling_factor;
@@ -468,7 +493,7 @@ GLuint BuildTriangles(ModelObject model)
 	glVertexAttribPointer(location, number_of_dimensions, GL_FLOAT, GL_FALSE, 0, 0);
 	glEnableVertexAttribArray(location);
 	glBindBuffer(GL_ARRAY_BUFFER, 0);
-	
+	/*
     GLfloat color_coefficients[] = {
     // Cores dos vértices do cubo
     //  R     G     B     A
@@ -508,18 +533,21 @@ GLuint BuildTriangles(ModelObject model)
         1.0f, 0.5f, 0.0f, 1.0f, // cor do vértice 1
         0.0f, 0.5f, 1.0f, 1.0f, // cor do vértice 2
         0.0f, 0.5f, 1.0f, 1.0f, // cor do vértice 3
-    };
-    GLuint VBO_color_coefficients_id;
+    };*/
+    
+	/*
+	GLfloat color_coefficients[] = { 0.5f, 0.5f, 0.5f, 1.0f };
+	GLuint VBO_color_coefficients_id;
     glGenBuffers(1, &VBO_color_coefficients_id);
     glBindBuffer(GL_ARRAY_BUFFER, VBO_color_coefficients_id);
-    glBufferData(GL_ARRAY_BUFFER, sizeof(color_coefficients), NULL, GL_STATIC_DRAW);
-    glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(color_coefficients), color_coefficients);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(color_coefficients), color_coefficients, GL_STATIC_DRAW);
+ //   glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(color_coefficients), color_coefficients);
     location = 1;
     number_of_dimensions = 4;
     glVertexAttribPointer(location, number_of_dimensions, GL_FLOAT, GL_FALSE, 0, 0);
     glEnableVertexAttribArray(location);
     glBindBuffer(GL_ARRAY_BUFFER, 0);
-	
+	*/
 	
 	GLuint indices[model.num_triangles * 3];
 	for (int i = 0; i < model.num_triangles * 3; i++) {
@@ -558,46 +586,50 @@ void KeyCallback(GLFWwindow *window, int key, int scancode, int action, int mod)
 	if (key == GLFW_KEY_W) {
         if (action == GLFW_PRESS) {
             g_W_pressed = true;
-        }
-        else if (action == GLFW_RELEASE) {
+        } else if (action == GLFW_RELEASE) {
             g_W_pressed = false;
-        }
-        else if (action == GLFW_REPEAT) {
         }
     }
 
     if (key == GLFW_KEY_A) {
         if (action == GLFW_PRESS) {
             g_A_pressed = true;
-        }
-        else if (action == GLFW_RELEASE) {
+        } else if (action == GLFW_RELEASE) {
             g_A_pressed = false;
-        }
-        else if (action == GLFW_REPEAT) {
         }
     }
 
     if (key == GLFW_KEY_S) {
         if (action == GLFW_PRESS) {
             g_S_pressed = true;
-        }
-        else if (action == GLFW_RELEASE) {
+        } else if (action == GLFW_RELEASE) {
             g_S_pressed = false;
-        }
-        else if (action == GLFW_REPEAT) {
         }
     }
 
     if (key == GLFW_KEY_D) {
         if (action == GLFW_PRESS) {
             g_D_pressed = true;
-        }
-        else if (action == GLFW_RELEASE) {
+        } else if (action == GLFW_RELEASE) {
             g_D_pressed = false;
         }
-        else if (action == GLFW_REPEAT) {
-        }
     }
+	
+	if (key == GLFW_KEY_Q) {
+		if (action == GLFW_PRESS) {
+			g_Q_pressed = true;
+		} else if (action == GLFW_RELEASE) {
+			g_Q_pressed = false;
+		}
+	}
+	
+	if (key == GLFW_KEY_Z) {
+		if (action == GLFW_PRESS) {
+			g_Z_pressed = true;
+		} else if (action == GLFW_RELEASE) {
+			g_Z_pressed = false;
+		}
+	}
 	
 	if (key == GLFW_KEY_R) {
         if (action == GLFW_PRESS) {
@@ -605,6 +637,10 @@ void KeyCallback(GLFWwindow *window, int key, int scancode, int action, int mod)
 			g_CameraPhi = 0.0f;
 			g_CameraDistance = 2.5f;
 			g_ResetCamera = true;
+			g_NearPlane = -0.1f;
+			g_FarPlane = -100.0f;
+			SetWindowTextW(w_NearPlaneBox, L"0.1");
+			SetWindowTextW(w_FarPlaneBox, L"100.0");
 		}
     }
 }
@@ -797,7 +833,6 @@ LRESULT CALLBACK WindowProcedure(HWND hWnd, UINT msg, WPARAM wp, LPARAM lp)
 			break;
 		  case PROC_OPEN_FILE:
 		    if (openFile(hWnd)) {
-				printf("opening file");
 				FILE *file;
 				if (!(file = fopen(g_ModelFilename, "r"))) {
 					MessageBox(NULL, "Arquivo nao encontrado!", "ERRO", MB_OK);
@@ -807,14 +842,95 @@ LRESULT CALLBACK WindowProcedure(HWND hWnd, UINT msg, WPARAM wp, LPARAM lp)
 				g_vertex_array_object_id = BuildTriangles(g_Model);
 			}
 			break;
-		  case PROC_TOGGLE_CW:
-			int checkedState = SendMessageW(w_toggleCW, BM_GETCHECK, 0, 0);
+		  case PROC_TOGGLE_CW: {
+			int checkedState = SendMessageW(w_ToggleCW, BM_GETCHECK, 0, 0);
 			if (checkedState == BST_CHECKED) {
 				glFrontFace(GL_CW);
 			} else if (checkedState == BST_UNCHECKED) {
 				glFrontFace(GL_CCW);
 			}
 		    break;
+		  }
+		  case PROC_NEARPLANE: {
+			wchar_t ws_nearplane[BUFFER_SIZE] = { 0 };
+			char s_nearplane[BUFFER_SIZE] = { 0 };
+			float nearplane = 0;
+			GetWindowTextW(w_NearPlaneBox, ws_nearplane, BUFFER_SIZE);
+			std::wcstombs(s_nearplane, ws_nearplane, BUFFER_SIZE);
+			nearplane = atof(s_nearplane);
+			g_NearPlane = -nearplane;
+			break;
+		  }
+		  case PROC_FARPLANE: {
+			wchar_t ws_farplane[BUFFER_SIZE] = { 0 };
+			char s_farplane[BUFFER_SIZE] = { 0 };
+			float farplane = 0;
+			GetWindowTextW(w_FarPlaneBox, ws_farplane, BUFFER_SIZE);
+			std::wcstombs(s_farplane, ws_farplane, BUFFER_SIZE);
+			farplane = atof(s_farplane);
+			g_FarPlane = -farplane;
+			break;
+		  }
+		  case PROC_RESET_CAMERA:
+			g_CameraTheta = 0.0f;
+			g_CameraPhi = 0.0f;
+			g_CameraDistance = 2.5f;
+			g_ResetCamera = true;
+			g_NearPlane = -0.1f;
+			g_FarPlane = -100.0f;
+			SetWindowTextW(w_NearPlaneBox, L"0.1");
+			SetWindowTextW(w_FarPlaneBox, L"100.0");
+			break;
+		  case PROC_CHANGE_COLOUR: {
+			wchar_t ws_r[BUFFER_SIZE] = { 0 };
+			wchar_t ws_g[BUFFER_SIZE] = { 0 };
+			wchar_t ws_b[BUFFER_SIZE] = { 0 };
+			char s_r[BUFFER_SIZE] = { 0 };
+			char s_g[BUFFER_SIZE] = { 0 };
+			char s_b[BUFFER_SIZE] = { 0 };
+			int r = 0; int g = 0; int b = 0;
+			float red = 0; float green = 0; float blue = 0;
+			GetWindowTextW(w_RedBox,   ws_r, BUFFER_SIZE);
+			GetWindowTextW(w_GreenBox, ws_g, BUFFER_SIZE);
+			GetWindowTextW(w_BlueBox,  ws_b, BUFFER_SIZE);
+			std::wcstombs(s_r, ws_r, BUFFER_SIZE);
+			std::wcstombs(s_g, ws_g, BUFFER_SIZE);
+			std::wcstombs(s_b, ws_b, BUFFER_SIZE);
+			r = atoi(s_r); g = atoi(s_g); b = atoi(s_b);
+			red   = (float) r/255;
+			green = (float) g/255;
+			blue  = (float) b/255;
+			
+			if (red > 1.0f) {
+				SetWindowTextW(w_RedBox, L"255");
+				g_Red = 1.0f;
+			} else if (red < 0.0f) {
+				SetWindowTextW(w_RedBox, L"0");
+				g_Red = 0.0f;
+			} else {
+				g_Red = red;
+			}
+			if (green > 1.0f) {
+				SetWindowTextW(w_GreenBox, L"255");
+				g_Green = 1.0f;
+			} else if (green < 0.0f) {
+				SetWindowTextW(w_GreenBox, L"0");
+				g_Green = 0.0f;
+			} else {
+				g_Green = green;
+			}
+			if (blue > 1.0f) {
+				SetWindowTextW(w_BlueBox, L"255");
+				g_Blue = 1.0f;
+			} else if (blue < 0.0f) {
+				SetWindowTextW(w_BlueBox, L"0");
+				g_Blue = 0.0f;
+			} else {
+				g_Blue = blue;
+			}
+
+			break;
+		  }
 		}
 		break;
 	  case WM_DESTROY:
@@ -850,32 +966,147 @@ void AddControls(HWND hWnd)
         WS_TABSTOP | WS_VISIBLE | WS_CHILD | BS_DEFPUSHBUTTON,
         20,         // x position 
         20,         // y position 
-        200,        // Button width
+        250,        // Button width
         25,        // Button height
         hWnd,     // Parent window
         (HMENU)PROC_OPEN_FILE, // procedure
         (HINSTANCE)GetWindowLongPtr(hWnd, GWLP_HINSTANCE),
         NULL);
 	
-	w_toggleCW = CreateWindowW(
+	w_ToggleCW = CreateWindowW(
 		L"BUTTON",
 		L"CW",
 		WS_CHILD | WS_VISIBLE | BS_AUTORADIOBUTTON,
 		20, 60,
-		100, 25,
+		125, 25,
 		hWnd,
 		(HMENU)PROC_TOGGLE_CW,
 		(HINSTANCE)GetWindowLongPtr(hWnd, GWLP_HINSTANCE),
 		NULL);
-	w_toggleCCW = CreateWindowW(
+	w_ToggleCCW = CreateWindowW(
 		L"BUTTON",
 		L"CCW",
 		WS_CHILD | WS_VISIBLE | BS_AUTORADIOBUTTON,
-		20, 90,
-		100, 25,
+		145, 60,
+		125, 25,
 		hWnd,
 		(HMENU)PROC_TOGGLE_CCW,
 		(HINSTANCE)GetWindowLongPtr(hWnd, GWLP_HINSTANCE),
 		NULL);
+	
+	w_NearPlaneBox = CreateWindowW(
+		L"EDIT", L"1.0",
+		WS_TABSTOP | WS_VISIBLE | WS_CHILD | WS_BORDER | ES_RIGHT,
+		20, 100,
+		115, 25,
+		hWnd,
+		NULL,
+		(HINSTANCE)GetWindowLongPtr(hWnd, GWLP_HINSTANCE),
+		NULL);
+	CreateWindowW(
+		L"BUTTON", L"SET NEAR PLANE",
+		WS_TABSTOP | WS_VISIBLE | WS_CHILD | BS_DEFPUSHBUTTON,
+		145, 100,
+		125, 25,
+		hWnd,
+		(HMENU)PROC_NEARPLANE,
+		(HINSTANCE)GetWindowLongPtr(hWnd, GWLP_HINSTANCE),
+		NULL);
+		
+	w_FarPlaneBox = CreateWindowW(
+		L"EDIT", L"100.0",
+		WS_TABSTOP | WS_VISIBLE | WS_CHILD | WS_BORDER | ES_RIGHT,
+		20, 140,
+		115, 25,
+		hWnd,
+		NULL,
+		(HINSTANCE)GetWindowLongPtr(hWnd, GWLP_HINSTANCE),
+		NULL);
+	CreateWindowW(
+		L"BUTTON", L"SET FAR PLANE",
+		WS_TABSTOP | WS_VISIBLE | WS_CHILD | BS_DEFPUSHBUTTON,
+		145, 140,
+		125, 25,
+		hWnd,
+		(HMENU)PROC_FARPLANE,
+		(HINSTANCE)GetWindowLongPtr(hWnd, GWLP_HINSTANCE),
+		NULL);
+		
+	CreateWindowW(
+        L"BUTTON", L"RESET CAMERA",
+        WS_TABSTOP | WS_VISIBLE | WS_CHILD | BS_DEFPUSHBUTTON,
+        20, 180,
+        250, 25,
+        hWnd,
+        (HMENU)PROC_RESET_CAMERA, 
+        (HINSTANCE)GetWindowLongPtr(hWnd, GWLP_HINSTANCE),
+        NULL);
+		
+	w_RedBox = CreateWindowW(
+		L"EDIT", L"128",
+		WS_TABSTOP | WS_VISIBLE | WS_CHILD | WS_BORDER | ES_RIGHT,
+		70, 220,
+		30,25,
+		hWnd,
+		NULL,
+		(HINSTANCE)GetWindowLongPtr(hWnd, GWLP_HINSTANCE),
+		NULL);
+	CreateWindowW(
+		L"STATIC", L"R",
+		WS_TABSTOP | WS_VISIBLE | WS_CHILD,
+		105, 225,
+		10, 25,
+		hWnd,
+		NULL,
+		(HINSTANCE)GetWindowLongPtr(hWnd, GWLP_HINSTANCE),
+		NULL);
+	
+	w_GreenBox = CreateWindowW(
+		L"EDIT", L"128",
+		WS_TABSTOP | WS_VISIBLE | WS_CHILD | WS_BORDER | ES_RIGHT,
+		120, 220,
+		30,25,
+		hWnd,
+		NULL,
+		(HINSTANCE)GetWindowLongPtr(hWnd, GWLP_HINSTANCE),
+		NULL);
+	CreateWindowW(
+		L"STATIC", L"G",
+		WS_TABSTOP | WS_VISIBLE | WS_CHILD,
+		155, 225,
+		10, 25,
+		hWnd,
+		NULL,
+		(HINSTANCE)GetWindowLongPtr(hWnd, GWLP_HINSTANCE),
+		NULL);
+		
+	w_BlueBox = CreateWindowW(
+		L"EDIT", L"128",
+		WS_TABSTOP | WS_VISIBLE | WS_CHILD | WS_BORDER | ES_RIGHT,
+		170, 220,
+		30,25,
+		hWnd,
+		NULL,
+		(HINSTANCE)GetWindowLongPtr(hWnd, GWLP_HINSTANCE),
+		NULL);
+	CreateWindowW(
+		L"STATIC", L"B",
+		WS_TABSTOP | WS_VISIBLE | WS_CHILD,
+		205, 225,
+		10, 25,
+		hWnd,
+		NULL,
+		(HINSTANCE)GetWindowLongPtr(hWnd, GWLP_HINSTANCE),
+		NULL);
+		
+	CreateWindowW(
+        L"BUTTON", L"CHANGE MODEL COLOUR",
+        WS_TABSTOP | WS_VISIBLE | WS_CHILD | BS_DEFPUSHBUTTON,
+        20, 250,
+        250, 25,
+        hWnd,
+        (HMENU)PROC_CHANGE_COLOUR, 
+        (HINSTANCE)GetWindowLongPtr(hWnd, GWLP_HINSTANCE),
+        NULL);
 	
 }
