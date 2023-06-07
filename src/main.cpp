@@ -39,6 +39,7 @@
 #define PROC_FARPLANE 6
 #define PROC_RESET_CAMERA 7
 #define PROC_CHANGE_COLOUR 8
+#define PROC_LOOKAT_CAMERA 9
 
 #define BUFFER_SIZE 100
 
@@ -83,7 +84,7 @@ double g_LastCursorPosX, g_LastCursorPosY;
 std::map<const char*, SceneObject> g_VirtualScene;
 float g_CameraTheta = 0.0f;
 float g_CameraPhi = 0.0f;
-float g_CameraDistance = 2.5f;
+float g_CameraDistance = 5.0f;
 float g_NearPlane = -0.1f;
 float g_FarPlane = -100.0f;
 bool g_ResetCamera = false;
@@ -96,6 +97,7 @@ bool g_Z_pressed = false;
 float g_Red = 0.5f;
 float g_Green = 0.5f;
 float g_Blue = 0.5f;
+bool g_LookAtCamera = false;
 
 char g_ModelFilename[FILENAME_MAX];
 ModelObject g_Model;
@@ -104,6 +106,7 @@ HWND w_ToggleCW = NULL;
 HWND w_ToggleCCW = NULL;
 HWND w_NearPlaneBox = NULL;
 HWND w_FarPlaneBox = NULL;
+HWND w_LookAtCheckbox = NULL;
 HWND w_RedBox = NULL;
 HWND w_GreenBox = NULL;
 HWND w_BlueBox = NULL;
@@ -114,7 +117,6 @@ void KeyCallback(GLFWwindow *window,
                                    int key, int scancode, int action, int mod);
 void MouseButtonCallback(GLFWwindow *window, int button, int action, int mods);
 void CursorPosCallback(GLFWwindow *window, double xpos, double ypos);
-void ScrollCallback(GLFWwindow *window, double xoffset, double yoffset);
 void FramebufferSizeCallback(GLFWwindow *window, int width, int height);
 
 // shader functions
@@ -172,7 +174,7 @@ int main( int argc, char** argv )
 	AddControls(hWnd);
 	MSG msg = { 0 };
 	UpdateWindow(hWnd);
-
+	SendMessageW(w_LookAtCheckbox, BM_SETCHECK, g_LookAtCamera, 0);
 
 	// initialize openGL
 	int success = glfwInit();
@@ -196,7 +198,6 @@ int main( int argc, char** argv )
 	glfwSetKeyCallback(window, KeyCallback);
 	glfwSetMouseButtonCallback(window, MouseButtonCallback);
 	glfwSetCursorPosCallback(window, CursorPosCallback);
-	glfwSetScrollCallback(window, ScrollCallback);
     glfwSetFramebufferSizeCallback(window, FramebufferSizeCallback);
 	glfwSetWindowSize(window, 800, 600);
 	g_ScreenRatio = 800.0f/600.0f;
@@ -244,35 +245,68 @@ int main( int argc, char** argv )
         }
 		
 		glm::vec4 cameraTarget = glm::vec4(0.0f,0.0f,0.0f,1.0f);
-		glm::vec4 cameraView = cameraTarget - glm::vec4(x,y,z,1.0f);
+		glm::vec4 cameraView;
+		if (g_LookAtCamera) {
+			cameraView = cameraTarget - camera_position_c;
+		} else {
+			cameraView = cameraTarget - glm::vec4(x,y,z,1.0f);
+		}
 		glm::vec4 cameraUp = glm::vec4(0.0f,1.0f,0.0f,0.0f);
 		
         glm::vec4 camera_w = -cameraView/norm(cameraView);
         glm::vec4 camera_u = crossproduct(cameraUp, camera_w);
         glm::vec4 camera_v = crossproduct(camera_w, camera_u);
 		
+		g_CameraDistance = norm(cameraView);
 		// front/back
         if (g_W_pressed) {
             camera_position_c -= camera_w * 0.05f;
+			g_CameraDistance = norm(camera_position_c);
         }
         if (g_S_pressed) {
             camera_position_c += camera_w * 0.05f;
+			g_CameraDistance = norm(camera_position_c);
         }
 		// left/right
 		if (g_A_pressed) {
-            camera_position_c -= camera_u * 0.05f;
+			camera_position_c -= camera_u * 0.05f;
+			g_CameraDistance = norm(camera_position_c);
+			if (g_LookAtCamera) {
+				g_CameraTheta -= 0.01f;
+				cameraView = cameraTarget - camera_position_c;
+			}
         }
         if (g_D_pressed) {
             camera_position_c += camera_u * 0.05f;
+			g_CameraDistance = norm(camera_position_c);
+			if (g_LookAtCamera) {
+				g_CameraTheta += 0.01f;
+				cameraView = cameraTarget - camera_position_c;
+			}
         }
 		// up/down
 		if (g_Q_pressed) {
 			camera_position_c += camera_v * 0.05f;
+			g_CameraDistance = norm(camera_position_c);
+			if (g_LookAtCamera) {
+				g_CameraPhi += 0.01f;
+				if (g_CameraPhi > 3.141592f/2) {
+					g_CameraPhi = 3.141592f/2;
+				}
+				cameraView = cameraTarget - camera_position_c;
+			}
 		}
 		if (g_Z_pressed) {
 			camera_position_c -= camera_v * 0.05f;
+			g_CameraDistance = norm(camera_position_c);
+			if (g_LookAtCamera) {
+				g_CameraPhi -= 0.01f;
+				if (g_CameraPhi < -3.141592f/2) {
+					g_CameraPhi = -3.141592f/2;
+				}
+				cameraView = cameraTarget - camera_position_c;
+			}
 		}
-		
 		
 		glm::mat4 viewMatrix = Matrix_Camera_View(camera_position_c, cameraView, cameraUp);		
 		
@@ -287,24 +321,29 @@ int main( int argc, char** argv )
 		if (g_vertex_array_object_id != -1) {
 			
 			glUniform4f(colorVectorLocation, g_Red, g_Green, g_Blue, 1.0f);
-			
-			float trans_x = (g_VirtualScene["model"].min_coord.x + g_VirtualScene["model"].max_coord.x) / 2;
-			float trans_y = (g_VirtualScene["model"].min_coord.y + g_VirtualScene["model"].max_coord.y) / 2;
-			float trans_z = (g_VirtualScene["model"].min_coord.z + g_VirtualScene["model"].max_coord.z) / 2;
-			float size_x  = (g_VirtualScene["model"].max_coord.x - g_VirtualScene["model"].min_coord.x);
-			float size_y  = (g_VirtualScene["model"].max_coord.y - g_VirtualScene["model"].min_coord.y);
-			float size_z  = (g_VirtualScene["model"].max_coord.z - g_VirtualScene["model"].min_coord.z);
+			float max_x = g_VirtualScene["model"].max_coord.x;
+			float max_y = g_VirtualScene["model"].max_coord.y;
+			float max_z = g_VirtualScene["model"].max_coord.z;
+			float min_x = g_VirtualScene["model"].min_coord.x;
+			float min_y = g_VirtualScene["model"].min_coord.y;
+			float min_z = g_VirtualScene["model"].min_coord.z;
+			float trans_x = (min_x + max_x) / 2;
+			float trans_y = (min_y + max_y) / 2;
+			float trans_z = (min_z + max_z) / 2;
+			float size_x  = (max_x - min_x);
+			float size_y  = (max_y - min_y);
+			float size_z  = (max_z - min_z);
 			float scaling_factor = size_x;
 			scaling_factor = (size_y > scaling_factor) ? size_y : scaling_factor;
 			scaling_factor = (size_z > scaling_factor) ? size_z : scaling_factor;
 			glBindVertexArray(g_vertex_array_object_id);
 			
 			glm::vec3 objectTranslate = glm::vec3(-trans_x, -trans_y, -trans_z);
-			glm::vec3 objectScale = glm::vec3(2.0f / scaling_factor, 2.0f / scaling_factor, 2.0f / scaling_factor);
+			glm::vec3 objectScale = glm::vec3(4.0f / scaling_factor, 4.0f / scaling_factor, 4.0f / scaling_factor);
 			glm::mat4 modelMatrix = glm::mat4(1.0f);
 			modelMatrix = glm::scale(modelMatrix, objectScale);
 			modelMatrix = glm::translate(modelMatrix, objectTranslate);
-
+			
 			glDrawElements(
 				g_VirtualScene["model"].rendering_mode,
 				g_VirtualScene["model"].num_indices,
@@ -580,7 +619,7 @@ void KeyCallback(GLFWwindow *window, int key, int scancode, int action, int mod)
         if (action == GLFW_PRESS) {
 			g_CameraTheta = 0.0f;
 			g_CameraPhi = 0.0f;
-			g_CameraDistance = 2.5f;
+			g_CameraDistance = 5.0f;
 			g_ResetCamera = true;
 			g_NearPlane = -0.1f;
 			g_FarPlane = -100.0f;
@@ -606,15 +645,12 @@ void CursorPosCallback(GLFWwindow *window, double xpos, double ypos)
 	if (!g_LeftMouseButtonPressed) {
 		return;
 	}	
-	// Deslocamento do cursor do mouse em x e y de coordenadas de tela!
     float dx = xpos - g_LastCursorPosX;
     float dy = ypos - g_LastCursorPosY;
 
-    // Atualizamos parâmetros da câmera com os deslocamentos
     g_CameraTheta -= 0.01f*dx;
     g_CameraPhi   += 0.01f*dy;
 
-    // Em coordenadas esféricas, o ângulo phi deve ficar entre -pi/2 e +pi/2.
     float phimax = 3.141592f/2;
     float phimin = -phimax;
 
@@ -624,15 +660,8 @@ void CursorPosCallback(GLFWwindow *window, double xpos, double ypos)
     if (g_CameraPhi < phimin)
         g_CameraPhi = phimin;
 
-    // Atualizamos as variáveis globais para armazenar a posição atual do
-    // cursor como sendo a última posição conhecida do cursor.
     g_LastCursorPosX = xpos;
     g_LastCursorPosY = ypos;
-}
-
-void ScrollCallback(GLFWwindow *window, double xoffset, double yoffset)
-{
-	return;
 }
 
 void FramebufferSizeCallback(GLFWwindow *window, int width, int height)
@@ -819,7 +848,7 @@ LRESULT CALLBACK WindowProcedure(HWND hWnd, UINT msg, WPARAM wp, LPARAM lp)
 		  case PROC_RESET_CAMERA:
 			g_CameraTheta = 0.0f;
 			g_CameraPhi = 0.0f;
-			g_CameraDistance = 2.5f;
+			g_CameraDistance = 5.0f;
 			g_ResetCamera = true;
 			g_NearPlane = -0.1f;
 			g_FarPlane = -100.0f;
@@ -874,6 +903,16 @@ LRESULT CALLBACK WindowProcedure(HWND hWnd, UINT msg, WPARAM wp, LPARAM lp)
 				g_Blue = blue;
 			}
 
+			break;
+		  }
+		  case PROC_LOOKAT_CAMERA: {
+			SendMessageW(w_LookAtCheckbox, BM_SETCHECK, !g_LookAtCamera, 0);
+		    int checkedState = SendMessageW(w_LookAtCheckbox, BM_GETCHECK, 0, 0);
+			if (checkedState == BST_CHECKED) {
+				g_LookAtCamera = true;
+			} else {
+				g_LookAtCamera = false;
+			}
 			break;
 		  }
 		}
@@ -940,7 +979,7 @@ void AddControls(HWND hWnd)
 		NULL);
 	
 	w_NearPlaneBox = CreateWindowW(
-		L"EDIT", L"1.0",
+		L"EDIT", L"0.1",
 		WS_TABSTOP | WS_VISIBLE | WS_CHILD | WS_BORDER | ES_RIGHT,
 		20, 100,
 		115, 25,
@@ -977,10 +1016,20 @@ void AddControls(HWND hWnd)
 		(HINSTANCE)GetWindowLongPtr(hWnd, GWLP_HINSTANCE),
 		NULL);
 		
+	w_LookAtCheckbox = CreateWindowW(
+		L"BUTTON", L"LOOK AT CAMERA",
+		WS_TABSTOP | WS_VISIBLE | WS_CHILD | BS_CHECKBOX,
+        20, 180,
+        250, 25,
+        hWnd,
+        (HMENU)PROC_LOOKAT_CAMERA, 
+        (HINSTANCE)GetWindowLongPtr(hWnd, GWLP_HINSTANCE),
+        NULL);
+		
 	CreateWindowW(
         L"BUTTON", L"RESET CAMERA",
         WS_TABSTOP | WS_VISIBLE | WS_CHILD | BS_DEFPUSHBUTTON,
-        20, 180,
+        20, 220,
         250, 25,
         hWnd,
         (HMENU)PROC_RESET_CAMERA, 
@@ -990,7 +1039,7 @@ void AddControls(HWND hWnd)
 	w_RedBox = CreateWindowW(
 		L"EDIT", L"128",
 		WS_TABSTOP | WS_VISIBLE | WS_CHILD | WS_BORDER | ES_RIGHT,
-		70, 220,
+		70, 260,
 		30,25,
 		hWnd,
 		NULL,
@@ -999,7 +1048,7 @@ void AddControls(HWND hWnd)
 	CreateWindowW(
 		L"STATIC", L"R",
 		WS_TABSTOP | WS_VISIBLE | WS_CHILD,
-		105, 225,
+		105, 265,
 		10, 25,
 		hWnd,
 		NULL,
@@ -1009,7 +1058,7 @@ void AddControls(HWND hWnd)
 	w_GreenBox = CreateWindowW(
 		L"EDIT", L"128",
 		WS_TABSTOP | WS_VISIBLE | WS_CHILD | WS_BORDER | ES_RIGHT,
-		120, 220,
+		120, 260,
 		30,25,
 		hWnd,
 		NULL,
@@ -1018,7 +1067,7 @@ void AddControls(HWND hWnd)
 	CreateWindowW(
 		L"STATIC", L"G",
 		WS_TABSTOP | WS_VISIBLE | WS_CHILD,
-		155, 225,
+		155, 265,
 		10, 25,
 		hWnd,
 		NULL,
@@ -1028,7 +1077,7 @@ void AddControls(HWND hWnd)
 	w_BlueBox = CreateWindowW(
 		L"EDIT", L"128",
 		WS_TABSTOP | WS_VISIBLE | WS_CHILD | WS_BORDER | ES_RIGHT,
-		170, 220,
+		170, 260,
 		30,25,
 		hWnd,
 		NULL,
@@ -1037,7 +1086,7 @@ void AddControls(HWND hWnd)
 	CreateWindowW(
 		L"STATIC", L"B",
 		WS_TABSTOP | WS_VISIBLE | WS_CHILD,
-		205, 225,
+		205, 265,
 		10, 25,
 		hWnd,
 		NULL,
@@ -1047,7 +1096,7 @@ void AddControls(HWND hWnd)
 	CreateWindowW(
         L"BUTTON", L"CHANGE MODEL COLOUR",
         WS_TABSTOP | WS_VISIBLE | WS_CHILD | BS_DEFPUSHBUTTON,
-        20, 250,
+        20, 290,
         250, 25,
         hWnd,
         (HMENU)PROC_CHANGE_COLOUR, 
