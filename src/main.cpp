@@ -1102,5 +1102,4 @@ void AddControls(HWND hWnd)
         (HMENU)PROC_CHANGE_COLOUR, 
         (HINSTANCE)GetWindowLongPtr(hWnd, GWLP_HINSTANCE),
         NULL);
-	
 }
