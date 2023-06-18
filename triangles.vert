@@ -8,11 +8,17 @@ uniform mat4 modelMatrix;
 uniform mat4 viewMatrix;
 uniform mat4 projectionMatrix;
 
+uniform bool useClose2GL;
+
 out vec4 cor_interpolada_pelo_rasterizador;
 
 void
 main()
 {
-    gl_Position = projectionMatrix * viewMatrix * modelMatrix * model_coefficients;
+	if (useClose2GL) {
+		gl_Position = model_coefficients;
+	} else {
+		gl_Position = projectionMatrix * viewMatrix * modelMatrix * model_coefficients;
+	}
 	cor_interpolada_pelo_rasterizador = colorVector;
 }

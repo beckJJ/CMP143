@@ -1,4 +1,4 @@
-This is XeTeX, Version 3.141592653-2.6-0.999993 (MiKTeX 21.2) (preloaded format=xelatex 2021.5.5)  6 JUN 2023 23:35
+This is XeTeX, Version 3.141592653-2.6-0.999993 (MiKTeX 21.2) (preloaded format=xelatex 2021.5.5)  6 JUN 2023 23:41
 entering extended mode
 **"./Assignment 1 - Pedro Beck.tex"
 (Assignment 1 - Pedro Beck.tex
@@ -603,9 +603,9 @@ File: 13.png Graphic file (type bmp)
 File: 14.png Graphic file (type bmp)
 <14.png>
  [9]
-Overfull \hbox (39.69109pt too wide) in paragraph at lines 143--144
-[]\TU/TimesNewRoman(0)/m/n/12 The source code is included with this report, and
- it’s also available at https://github.com/beckJJ/CMP143 
+Overfull \hbox (36.49107pt too wide) in paragraph at lines 143--144
+[]\TU/TimesNewRoman(0)/m/n/12 The source code is included with this report and 
+it’s also available at https://github.com/beckJJ/CMP143 
  []
 
 [10] (Assignment 1 - Pedro Beck.aux) ) 
