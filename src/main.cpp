@@ -92,15 +92,16 @@ float g_Red   = 0.5f;
 float g_Green = 0.5f;
 float g_Blue  = 0.5f;
 bool g_LeftMouseButtonPressed = false;
-bool g_ResetCamera  = false;
-bool g_W_pressed    = false;
-bool g_A_pressed    = false;
-bool g_S_pressed    = false;
-bool g_D_pressed    = false;
-bool g_Q_pressed    = false;
-bool g_Z_pressed    = false;
-bool g_LookAtCamera = false;
-bool g_UseClose2GL  = false;
+bool g_ResetCamera     = false;
+bool g_W_pressed       = false;
+bool g_A_pressed       = false;
+bool g_S_pressed       = false;
+bool g_D_pressed       = false;
+bool g_Q_pressed       = false;
+bool g_Z_pressed       = false;
+bool g_LookAtCamera    = false;
+bool g_UseClose2GL     = false;
+bool g_TogglePoints    = false;
 
 glm::mat4 g_ModelMatrix;
 glm::mat4 g_ViewMatrix;
@@ -360,12 +361,22 @@ int main( int argc, char** argv )
             g_ModelMatrix = glm::scale(g_ModelMatrix, objectScale);
             g_ModelMatrix = glm::translate(g_ModelMatrix, objectTranslate);
 
-            glDrawElements(
-                g_VirtualScene["model"].rendering_mode,
-                g_VirtualScene["model"].num_indices,
-                GL_UNSIGNED_INT,
-                (void*)g_VirtualScene["model"].first_index
-            );
+            if (g_TogglePoints) {
+                glDrawElements(
+                    GL_POINTS,
+                    g_VirtualScene["model"].num_indices,
+                    GL_UNSIGNED_INT,
+                    (void*)g_VirtualScene["model"].first_index
+                );
+
+            } else {
+                glDrawElements(
+                    g_VirtualScene["model"].rendering_mode,
+                    g_VirtualScene["model"].num_indices,
+                    GL_UNSIGNED_INT,
+                    (void*)g_VirtualScene["model"].first_index
+                );
+            }
             glUniformMatrix4fv(modelMatrixLocation, 1, GL_FALSE, glm::value_ptr(g_ModelMatrix));
         }
 
@@ -951,17 +962,19 @@ LRESULT CALLBACK WindowProcedure(HWND hWnd, UINT msg, WPARAM wp, LPARAM lp)
             break;
           }
           case PROC_TOGGLE_SOLID: {
-              int points    = SendMessageW(w_TogglePoints,    BM_GETCHECK, 0, 0);
-              int wireframe = SendMessageW(w_ToggleWireframe, BM_GETCHECK, 0, 0); 
-              int solid     = SendMessageW(w_ToggleSolid,     BM_GETCHECK, 0, 0);
-              if (points == BST_CHECKED) {
-                  printf("points\n");
-              } else if (wireframe == BST_CHECKED) {
-                  printf("wireframe\n");
-              } else if (solid == BST_CHECKED) {
-                  printf("solid\n");
-              }
-              break;
+            int points    = SendMessageW(w_TogglePoints,    BM_GETCHECK, 0, 0);
+            int wireframe = SendMessageW(w_ToggleWireframe, BM_GETCHECK, 0, 0); 
+            int solid     = SendMessageW(w_ToggleSolid,     BM_GETCHECK, 0, 0);
+            if (points == BST_CHECKED) {
+                g_TogglePoints = true;
+            } else if (wireframe == BST_CHECKED) {
+                g_TogglePoints = false;
+                glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+            } else if (solid == BST_CHECKED) {
+                g_TogglePoints = false;
+                glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+            }
+            break;
           }
         }
         break;
