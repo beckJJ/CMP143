@@ -286,11 +286,11 @@ glm::mat4 Matrix_Orthographic(float l, float r, float b, float t, float n, float
 }
 
 // Matriz de projeção perspectiva
-glm::mat4 Matrix_Perspective(float field_of_view, float aspect, float n, float f)
+glm::mat4 Matrix_Perspective(float vfov, float hfov, float aspect, float n, float f)
 {
-    float t = fabs(n) * tanf(field_of_view / 2.0f);
+    float t = fabs(n) * tanf(vfov / 2.0f);
     float b = -t;
-    float r = t * aspect;
+    float r = fabs(n) * tanf(hfov / 2.0f); // função modificada para poder informar o hfov e vfov
     float l = -r;
 
     glm::mat4 P = Matrix(

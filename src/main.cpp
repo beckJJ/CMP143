@@ -42,6 +42,9 @@
 #define PROC_LOOKAT_CAMERA 9
 #define PROC_TOGGLE_GL 10
 #define PROC_TOGGLE_SOLID 11
+#define PROC_SET_HFOV 12
+#define PROC_SET_VFOV 13
+#define PROC_RESET_WINDOW 14
 
 #define BUFFER_SIZE 100
 
@@ -91,6 +94,8 @@ float g_FarPlane  = -100.0f;
 float g_Red   = 0.5f;
 float g_Green = 0.5f;
 float g_Blue  = 0.5f;
+float g_hFov  = glm::radians(50.0f);
+float g_vFov  = glm::radians(37.5f);
 bool g_LeftMouseButtonPressed = false;
 bool g_ResetCamera     = false;
 bool g_W_pressed       = false;
@@ -110,6 +115,7 @@ glm::mat4 g_ProjectionMatrix;
 char g_ModelFilename[FILENAME_MAX];
 ModelObject g_Model;
 
+GLFWwindow *g_GLWindow;
 GLuint g_VertexArrayObject_id;
 GLint  g_useClose2GLLocation;
 
@@ -203,21 +209,21 @@ int main( int argc, char** argv )
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
 
-    GLFWwindow *window = glfwCreateWindow(800, 600, "CMP143", NULL, NULL);
-    if (!window) {
+    g_GLWindow = glfwCreateWindow(800, 600, "CMP143", NULL, NULL);
+    if (!g_GLWindow) {
         glfwTerminate();
         fprintf(stderr, "ERROR: glfwCreateWindow() failed.\n");
         std::exit(EXIT_FAILURE);
     }
 
-    glfwSetKeyCallback(window, KeyCallback);
-    glfwSetMouseButtonCallback(window, MouseButtonCallback);
-    glfwSetCursorPosCallback(window, CursorPosCallback);
-    glfwSetFramebufferSizeCallback(window, FramebufferSizeCallback);
-    glfwSetWindowSize(window, 800, 600);
+    glfwSetKeyCallback(g_GLWindow, KeyCallback);
+    glfwSetMouseButtonCallback(g_GLWindow, MouseButtonCallback);
+    glfwSetCursorPosCallback(g_GLWindow, CursorPosCallback);
+    glfwSetFramebufferSizeCallback(g_GLWindow, FramebufferSizeCallback);
+    glfwSetWindowSize(g_GLWindow, 800, 600);
     g_ScreenRatio = 800.0f/600.0f;
 
-    glfwMakeContextCurrent(window);
+    glfwMakeContextCurrent(g_GLWindow);
     
     // load shaders
     gl3wInit();
@@ -238,7 +244,7 @@ int main( int argc, char** argv )
 
     glUniform1i(g_useClose2GLLocation, g_UseClose2GL);
 
-    while (!glfwWindowShouldClose(window)) {
+    while (!glfwWindowShouldClose(g_GLWindow)) {
         glUseProgram(program_id);
         static const float background[] = { 1.0f, 1.0f, 1.0f, 0.0f };
 
@@ -322,11 +328,8 @@ int main( int argc, char** argv )
         }
 
         g_ViewMatrix = Matrix_Camera_View(camera_position_c, cameraView, cameraUp);		
-        
-        float FOV = 3.141592 / 4;
-        float aspectRatio = g_ScreenRatio;
-        
-        g_ProjectionMatrix = Matrix_Perspective(FOV, g_ScreenRatio, g_NearPlane, g_FarPlane);
+               
+        g_ProjectionMatrix = Matrix_Perspective(g_vFov, g_hFov, g_ScreenRatio, g_NearPlane, g_FarPlane);
 
         glUniformMatrix4fv(viewMatrixLocation,       1 , GL_FALSE , glm::value_ptr(g_ViewMatrix));
         glUniformMatrix4fv(projectionMatrixLocation, 1 , GL_FALSE , glm::value_ptr(g_ProjectionMatrix));
@@ -380,11 +383,11 @@ int main( int argc, char** argv )
             glUniformMatrix4fv(modelMatrixLocation, 1, GL_FALSE, glm::value_ptr(g_ModelMatrix));
         }
 
-        glfwSwapBuffers(window);
+        glfwSwapBuffers(g_GLWindow);
         glfwPollEvents();
     }
 
-    glfwDestroyWindow(window);
+    glfwDestroyWindow(g_GLWindow);
 
     glfwTerminate();
     return 0;
@@ -545,6 +548,7 @@ GLuint BuildTriangles(ModelObject model)
             model_coefficients[i+1] = coords.y;
             model_coefficients[i+2] = coords.z;
             model_coefficients[i+3] = coords.w;
+         //   printf("%f\t%f\t%f\t%f\n", coords.x, coords.y, coords.z, coords.w);
         }
     }
     GLuint VBO_model_coefficients_id;
@@ -647,14 +651,18 @@ void KeyCallback(GLFWwindow *window, int key, int scancode, int action, int mod)
 
     if (key == GLFW_KEY_R) {
         if (action == GLFW_PRESS) {
-            g_CameraTheta    = 0.0f;
-            g_CameraPhi      = 0.0f;
+            g_CameraTheta = 0.0f;
+            g_CameraPhi = 0.0f;
             g_CameraDistance = 5.0f;
-            g_ResetCamera    = true;
-            g_NearPlane      = -0.1f;
-            g_FarPlane       = -100.0f;
+            g_ResetCamera = true;
+            g_NearPlane = -0.1f;
+            g_FarPlane = -100.0f;
+            g_hFov  = glm::radians(50.0f);
+            g_vFov  = glm::radians(37.5f);
             SetWindowTextW(w_NearPlaneBox, L"0.1");
             SetWindowTextW(w_FarPlaneBox, L"100.0");
+            SetWindowTextW(w_HorizontalFOV, L"50.0");
+            SetWindowTextW(w_VerticalFOV, L"37.5");
         }
     }
 }
@@ -884,8 +892,12 @@ LRESULT CALLBACK WindowProcedure(HWND hWnd, UINT msg, WPARAM wp, LPARAM lp)
             g_ResetCamera = true;
             g_NearPlane = -0.1f;
             g_FarPlane = -100.0f;
+            g_hFov  = glm::radians(50.0f);
+            g_vFov  = glm::radians(37.5f);
             SetWindowTextW(w_NearPlaneBox, L"0.1");
             SetWindowTextW(w_FarPlaneBox, L"100.0");
+            SetWindowTextW(w_HorizontalFOV, L"50.0");
+            SetWindowTextW(w_VerticalFOV, L"37.5");
             break;
           }
           case PROC_CHANGE_COLOUR: {
@@ -976,6 +988,30 @@ LRESULT CALLBACK WindowProcedure(HWND hWnd, UINT msg, WPARAM wp, LPARAM lp)
             }
             break;
           }
+          case PROC_SET_HFOV: {
+            wchar_t ws_hfov[BUFFER_SIZE] = { 0 };
+            char s_hfov[BUFFER_SIZE] = { 0 };
+            float hfov = 0;
+            GetWindowTextW(w_HorizontalFOV, ws_hfov, BUFFER_SIZE);
+            std::wcstombs(s_hfov, ws_hfov, BUFFER_SIZE);
+            hfov = atof(s_hfov);
+            g_hFov = glm::radians(hfov);
+            break;
+          }
+          case PROC_SET_VFOV: {
+            wchar_t ws_vfov[BUFFER_SIZE] = { 0 };
+            char s_vfov[BUFFER_SIZE] = { 0 };
+            float vfov = 0;
+            GetWindowTextW(w_VerticalFOV, ws_vfov, BUFFER_SIZE);
+            std::wcstombs(s_vfov, ws_vfov, BUFFER_SIZE);
+            vfov = atof(s_vfov);
+            g_vFov = glm::radians(vfov);
+            break;
+          }
+          case PROC_RESET_WINDOW: {
+            glfwSetWindowSize(g_GLWindow, 800, 600);
+            g_ScreenRatio = 800.0f/600.0f;
+          }
         }
         break;
       }
@@ -1014,7 +1050,7 @@ void AddControls(HWND hWnd)
         WS_TABSTOP | WS_VISIBLE | WS_CHILD | BS_DEFPUSHBUTTON,
         20,         // x position 
         20,         // y position 
-        250,        // Button width
+        520,        // Button width
         25,        // Button height
         hWnd,     // Parent window
         (HMENU)PROC_OPEN_FILE, // procedure
@@ -1187,20 +1223,7 @@ void AddControls(HWND hWnd)
         (HMENU)PROC_CHANGE_COLOUR, 
         (HINSTANCE)GetWindowLongPtr(hWnd, GWLP_HINSTANCE),
         NULL);
-/*
-    CreateWindowW(
-        L"BUTTON",
-        L"OPEN MODEL",      // Button text 
-        WS_TABSTOP | WS_VISIBLE | WS_CHILD | BS_DEFPUSHBUTTON,
-        290,         // x position 
-        20,         // y position 
-        250,        // Button width
-        25,        // Button height
-        hWnd,     // Parent window
-        (HMENU)PROC_OPEN_FILE, // procedure
-        (HINSTANCE)GetWindowLongPtr(hWnd, GWLP_HINSTANCE),
-        NULL);
-*/	
+
     w_TogglePoints = CreateWindowW(
         L"BUTTON",
         L"POINTS",
@@ -1235,7 +1258,7 @@ void AddControls(HWND hWnd)
         NULL);
 
     w_HorizontalFOV = CreateWindowW(
-        L"EDIT", L"60",
+        L"EDIT", L"50.0",
         WS_TABSTOP | WS_VISIBLE | WS_CHILD | WS_BORDER | ES_RIGHT,
         290, 100,
         115, 25,
@@ -1249,12 +1272,12 @@ void AddControls(HWND hWnd)
         415, 100,
         125, 25,
         hWnd,
-        (HMENU)PROC_NEARPLANE,
+        (HMENU)PROC_SET_HFOV,
         (HINSTANCE)GetWindowLongPtr(hWnd, GWLP_HINSTANCE),
         NULL);
 
     w_VerticalFOV = CreateWindowW(
-        L"EDIT", L"60",
+        L"EDIT", L"37.5",
         WS_TABSTOP | WS_VISIBLE | WS_CHILD | WS_BORDER | ES_RIGHT,
         290, 140,
         115, 25,
@@ -1268,7 +1291,17 @@ void AddControls(HWND hWnd)
         415, 140,
         125, 25,
         hWnd,
-        (HMENU)PROC_NEARPLANE,
+        (HMENU)PROC_SET_VFOV,
+        (HINSTANCE)GetWindowLongPtr(hWnd, GWLP_HINSTANCE),
+        NULL);
+        
+    CreateWindowW(
+        L"BUTTON", L"RESET WINDOW SIZE",
+        WS_TABSTOP | WS_VISIBLE | WS_CHILD | BS_DEFPUSHBUTTON,
+        290, 180,
+        250, 25,
+        hWnd,
+        (HMENU)PROC_RESET_WINDOW,
         (HINSTANCE)GetWindowLongPtr(hWnd, GWLP_HINSTANCE),
         NULL);
 }
