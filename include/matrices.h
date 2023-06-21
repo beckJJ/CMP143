@@ -342,6 +342,19 @@ glm::mat4 Matrix_Perspective(float vfov, float hfov, float aspect, float n, floa
     return -M*P;
 }
 
+// Matriz de projeção perspectiva
+glm::mat4 Matrix_Viewport(float rv, float lv, float tv, float bv)
+{
+    glm::mat4 VP = Matrix(
+        (rv-lv)/2 , 0.0f      , 0.0f , (rv+lv)/2 ,  // LINHA 1
+        0.0f      , (tv-bv)/2 , 0.0f , (tv+bv)/2 ,  // LINHA 2
+        0.0f      , 0.0f      , 1.0f , 0.0f      ,  // LINHA 3
+        0.0f      , 0.0f      , 0.0f , 1.0f         // LINHA 4
+    );
+
+    return VP;
+}
+
 // Função que imprime uma matriz M no terminal
 void PrintMatrix(glm::mat4 M)
 {

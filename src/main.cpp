@@ -107,6 +107,9 @@ bool g_Z_pressed       = false;
 bool g_LookAtCamera    = false;
 bool g_UseClose2GL     = false;
 bool g_TogglePoints    = false;
+bool g_ToggleCW        = true; // true = CW, false = CCW
+int g_ScreenWidth  = 800;
+int g_ScreenHeight = 600;
 
 glm::mat4 g_ModelMatrix;
 glm::mat4 g_ViewMatrix;
@@ -483,8 +486,9 @@ GLuint BuildTriangles(ModelObject model)
 {
     glm::vec3 min_coord = glm::vec3(FLT_MAX, FLT_MAX, FLT_MAX);
     glm::vec3 max_coord = glm::vec3(FLT_MIN, FLT_MIN, FLT_MIN);
-
-    GLfloat model_coefficients[model.num_triangles * 3 * 4];	
+    int num_vertices = model.num_triangles * 3;
+    GLfloat model_coefficients[num_vertices * 4];
+    GLfloat close2gl_coefficients[num_vertices * 4];
     int j = 0;
     for (int i = 0; i < model.num_triangles; i++) {
         Triangle triangle = model.triangles[i];
@@ -538,57 +542,188 @@ GLuint BuildTriangles(ModelObject model)
         j+=4;
     }
     if (g_UseClose2GL) {
-        for (int i = 0; i < model.num_triangles*3*4; i+=4) {
-            glm::vec4 coords = glm::vec4(model_coefficients[i],
-                                         model_coefficients[i+1],
-                                         model_coefficients[i+2],
-                                         model_coefficients[i+3]);
-            coords = g_ProjectionMatrix * g_ViewMatrix * g_ModelMatrix * coords;
-            model_coefficients[i]   = coords.x;
-            model_coefficients[i+1] = coords.y;
-            model_coefficients[i+2] = coords.z;
-            model_coefficients[i+3] = coords.w;
-         //   printf("%f\t%f\t%f\t%f\n", coords.x, coords.y, coords.z, coords.w);
+        int clipped_vertices = 0;
+        int j = 0;
+        for (int i = 0; i < num_vertices*4; i+=12) {
+            bool clip_vertices = false;
+            // three triangles vertices
+            glm::vec4 coords1 = glm::vec4(model_coefficients[i   ],
+                                          model_coefficients[i+1 ],
+                                          model_coefficients[i+2 ],
+                                          model_coefficients[i+3 ]);
+            glm::vec4 coords2 = glm::vec4(model_coefficients[i+4 ],
+                                          model_coefficients[i+5 ],
+                                          model_coefficients[i+6 ],
+                                          model_coefficients[i+7 ]);
+            glm::vec4 coords3 = glm::vec4(model_coefficients[i+8 ],
+                                          model_coefficients[i+9 ],
+                                          model_coefficients[i+10],
+                                          model_coefficients[i+11]);                   
+            coords1 = g_ProjectionMatrix * g_ViewMatrix * g_ModelMatrix * coords1;
+            coords2 = g_ProjectionMatrix * g_ViewMatrix * g_ModelMatrix * coords2;
+            coords3 = g_ProjectionMatrix * g_ViewMatrix * g_ModelMatrix * coords3;
+            
+            // clip if w <=  0
+            if (coords1.w <= 0 || coords2.w <= 0 || coords3.w <= 0) {
+                clipped_vertices += 3;
+            } else {
+                // division by w
+                coords1.x /= coords1.w;
+                coords1.y /= coords1.w;
+                coords1.z /= coords1.w;
+                coords1.w /= coords1.w;
+                coords2.x /= coords2.w;
+                coords2.y /= coords2.w;
+                coords2.z /= coords2.w;
+                coords2.w /= coords2.w;
+                coords3.x /= coords3.w;
+                coords3.y /= coords3.w;
+                coords3.z /= coords3.w;
+                coords3.w /= coords3.w;
+                // clip if z outside (-1, 1)
+                if ( coords1.z < -1 || coords1.z > 1 ||
+                     coords2.z < -1 || coords2.z > 1 ||
+                     coords3.z < -1 || coords3.z > 1 ) {
+                    clipped_vertices += 3;
+                } else {
+                   
+                    // calculate screen coordinates for backface culling
+                    glm::mat4 viewport = Matrix_Viewport(0.0f, (float)g_ScreenWidth, (float)g_ScreenHeight, 0.0f);
+                    glm::vec4 coords1sc = viewport * coords1;
+                    glm::vec4 coords2sc = viewport * coords2;
+                    glm::vec4 coords3sc = viewport * coords3;
+         
+                    // backface culling
+                    float area = 0;
+                    float sum  = 0;
+                    sum += (coords1sc.x*coords2sc.y - coords2sc.x*coords1sc.y);
+                    sum += (coords2sc.x*coords3sc.y - coords3sc.x*coords2sc.y);
+                    sum += (coords3sc.x*coords1sc.y - coords1sc.x*coords3sc.y);
+                    area = 0.5f * sum;
+                    
+                    if (g_ToggleCW) { // clockwise
+                        if (area < 0) {
+                            // cull
+                            clipped_vertices += 3;
+                        } else {
+                            close2gl_coefficients[j   ] = coords1.x;
+                            close2gl_coefficients[j+1 ] = coords1.y;
+                            close2gl_coefficients[j+2 ] = coords1.z;
+                            close2gl_coefficients[j+3 ] = coords1.w;
+                            close2gl_coefficients[j+4 ] = coords2.x;
+                            close2gl_coefficients[j+5 ] = coords2.y;
+                            close2gl_coefficients[j+6 ] = coords2.z;
+                            close2gl_coefficients[j+7 ] = coords2.w;
+                            close2gl_coefficients[j+8 ] = coords3.x;
+                            close2gl_coefficients[j+9 ] = coords3.y;
+                            close2gl_coefficients[j+10] = coords3.z;
+                            close2gl_coefficients[j+11] = coords3.w;
+                            j+=12;
+                        }
+                    } else { // counterclockwise
+                        if (area > 0) {
+                            // cull
+                            clipped_vertices += 3;
+                        } else {
+                            close2gl_coefficients[j   ] = coords1.x;
+                            close2gl_coefficients[j+1 ] = coords1.y;
+                            close2gl_coefficients[j+2 ] = coords1.z;
+                            close2gl_coefficients[j+3 ] = coords1.w;
+                            close2gl_coefficients[j+4 ] = coords2.x;
+                            close2gl_coefficients[j+5 ] = coords2.y;
+                            close2gl_coefficients[j+6 ] = coords2.z;
+                            close2gl_coefficients[j+7 ] = coords2.w;
+                            close2gl_coefficients[j+8 ] = coords3.x;
+                            close2gl_coefficients[j+9 ] = coords3.y;
+                            close2gl_coefficients[j+10] = coords3.z;
+                            close2gl_coefficients[j+11] = coords3.w;
+                            j+=12;
+                        }
+                    }
+                }
+            }
         }
+   //     printf("Clipped/culled vertices: %d\n", clipped_vertices);
+        num_vertices -= clipped_vertices;
+        
+        GLuint VBO_model_coefficients_id;
+        glGenBuffers(1, &VBO_model_coefficients_id);
+
+        GLuint vertex_array_object_id;
+        glGenVertexArrays(1, &vertex_array_object_id);
+        glBindVertexArray(vertex_array_object_id);
+        glBindBuffer(GL_ARRAY_BUFFER, VBO_model_coefficients_id);
+        glBufferData(GL_ARRAY_BUFFER, sizeof(close2gl_coefficients), NULL, GL_STATIC_DRAW);
+        glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(close2gl_coefficients), close2gl_coefficients);
+
+        GLuint location = 0;
+        GLint number_of_dimensions = 4;
+        glVertexAttribPointer(location, number_of_dimensions, GL_FLOAT, GL_FALSE, 0, 0);
+        glEnableVertexAttribArray(location);
+        glBindBuffer(GL_ARRAY_BUFFER, 0);
+
+        GLuint indices[num_vertices];
+        for (int i = 0; i < num_vertices; i++) {
+            indices[i] = i;
+        }
+
+        SceneObject sceneModel;
+        sceneModel.name           = "model";
+        sceneModel.first_index    = (void*)0; 
+        sceneModel.num_indices    =  model.num_triangles * 3;
+        sceneModel.rendering_mode = GL_TRIANGLES; 
+        sceneModel.min_coord      = min_coord;
+        sceneModel.max_coord      = max_coord;
+        g_VirtualScene["model"] = sceneModel;
+
+        GLuint indices_id;
+        glGenBuffers(1, &indices_id);
+        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, indices_id);
+        glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices), NULL, GL_STATIC_DRAW);
+        glBufferSubData(GL_ELEMENT_ARRAY_BUFFER, 0, sizeof(indices), indices);
+
+        glBindVertexArray(0);
+        return vertex_array_object_id;
+    } else {
+        GLuint VBO_model_coefficients_id;
+        glGenBuffers(1, &VBO_model_coefficients_id);
+
+        GLuint vertex_array_object_id;
+        glGenVertexArrays(1, &vertex_array_object_id);
+        glBindVertexArray(vertex_array_object_id);
+        glBindBuffer(GL_ARRAY_BUFFER, VBO_model_coefficients_id);
+        glBufferData(GL_ARRAY_BUFFER, sizeof(model_coefficients), NULL, GL_STATIC_DRAW);
+        glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(model_coefficients), model_coefficients);
+
+        GLuint location = 0;
+        GLint number_of_dimensions = 4;
+        glVertexAttribPointer(location, number_of_dimensions, GL_FLOAT, GL_FALSE, 0, 0);
+        glEnableVertexAttribArray(location);
+        glBindBuffer(GL_ARRAY_BUFFER, 0);
+
+        GLuint indices[num_vertices];
+        for (int i = 0; i < num_vertices; i++) {
+            indices[i] = i;
+        }
+
+        SceneObject sceneModel;
+        sceneModel.name           = "model";
+        sceneModel.first_index    = (void*)0; 
+        sceneModel.num_indices    =  model.num_triangles * 3;
+        sceneModel.rendering_mode = GL_TRIANGLES; 
+        sceneModel.min_coord      = min_coord;
+        sceneModel.max_coord      = max_coord;
+        g_VirtualScene["model"] = sceneModel;
+
+        GLuint indices_id;
+        glGenBuffers(1, &indices_id);
+        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, indices_id);
+        glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices), NULL, GL_STATIC_DRAW);
+        glBufferSubData(GL_ELEMENT_ARRAY_BUFFER, 0, sizeof(indices), indices);
+
+        glBindVertexArray(0);
+        return vertex_array_object_id;
     }
-    GLuint VBO_model_coefficients_id;
-    glGenBuffers(1, &VBO_model_coefficients_id);
-
-    GLuint vertex_array_object_id;
-    glGenVertexArrays(1, &vertex_array_object_id);
-    glBindVertexArray(vertex_array_object_id);
-    glBindBuffer(GL_ARRAY_BUFFER, VBO_model_coefficients_id);
-    glBufferData(GL_ARRAY_BUFFER, sizeof(model_coefficients), NULL, GL_STATIC_DRAW);
-    glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(model_coefficients), model_coefficients);
-
-    GLuint location = 0;
-    GLint number_of_dimensions = 4;
-    glVertexAttribPointer(location, number_of_dimensions, GL_FLOAT, GL_FALSE, 0, 0);
-    glEnableVertexAttribArray(location);
-    glBindBuffer(GL_ARRAY_BUFFER, 0);
-
-    GLuint indices[model.num_triangles * 3];
-    for (int i = 0; i < model.num_triangles * 3; i++) {
-        indices[i] = i;
-    }
-
-    SceneObject sceneModel;
-    sceneModel.name           = "model";
-    sceneModel.first_index    = (void*)0; 
-    sceneModel.num_indices    =  model.num_triangles * 3;
-    sceneModel.rendering_mode = GL_TRIANGLES; 
-    sceneModel.min_coord      = min_coord;
-    sceneModel.max_coord      = max_coord;
-    g_VirtualScene["model"] = sceneModel;
-
-    GLuint indices_id;
-    glGenBuffers(1, &indices_id);
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, indices_id);
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices), NULL, GL_STATIC_DRAW);
-    glBufferSubData(GL_ELEMENT_ARRAY_BUFFER, 0, sizeof(indices), indices);
-
-    glBindVertexArray(0);
-    return vertex_array_object_id;
 }
 
 void ErrorCallback(int error, const char *description)
@@ -705,7 +840,9 @@ void CursorPosCallback(GLFWwindow *window, double xpos, double ypos)
 void FramebufferSizeCallback(GLFWwindow *window, int width, int height)
 {
     glViewport(0, 0, width, height);
-    g_ScreenRatio = (float)width / height;
+    g_ScreenRatio  = (float)width / height;
+    g_ScreenWidth  = width;
+    g_ScreenHeight = height;
 }
 
 void LoadShader(const char *filename, GLuint shader_id)
@@ -860,8 +997,10 @@ LRESULT CALLBACK WindowProcedure(HWND hWnd, UINT msg, WPARAM wp, LPARAM lp)
             int checkedState = SendMessageW(w_ToggleCW, BM_GETCHECK, 0, 0);
             if (checkedState == BST_CHECKED) {
                 glFrontFace(GL_CW);
+                g_ToggleCW = true;
             } else if (checkedState == BST_UNCHECKED) {
                 glFrontFace(GL_CCW);
+                g_ToggleCW = false;
             }
             break;
           }
