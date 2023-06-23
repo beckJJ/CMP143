@@ -11,11 +11,13 @@
 #include <fstream>
 #include <sstream>
 #include <map>
+#include <vector>
 
 #include <math.h>
 #include <float.h>
 
 #include "matrices.h"
+#include "dejavufont.h"
 
 #include <Windows.h>
 #include <sdkddkver.h>
@@ -45,6 +47,10 @@
 #define PROC_SET_HFOV 12
 #define PROC_SET_VFOV 13
 #define PROC_RESET_WINDOW 14
+#define PROC_NO_SHADING 15
+#define PROC_GOURAUD_AD 16
+#define PROC_GOURAUD_ADS 17
+#define PROC_PHONG 18
 
 #define BUFFER_SIZE 100
 
@@ -59,7 +65,7 @@ struct Triangle {
     TriangleVertex v0;
     TriangleVertex v1;
     TriangleVertex v2;
-    glm::vec3      face_normal;
+    glm::vec3 face_normal;
 };
 
 struct ModelObject {
@@ -122,20 +128,30 @@ GLFWwindow *g_GLWindow;
 GLuint g_VertexArrayObject_id;
 GLint  g_useClose2GLLocation;
 
-HWND w_ToggleCW        = NULL;
-HWND w_ToggleCCW       = NULL;
-HWND w_ToggleGL        = NULL;
-HWND w_NearPlaneBox    = NULL;
-HWND w_FarPlaneBox     = NULL;
-HWND w_LookAtCheckbox  = NULL;
-HWND w_RedBox          = NULL;
-HWND w_GreenBox        = NULL;
-HWND w_BlueBox         = NULL;
-HWND w_TogglePoints    = NULL;
-HWND w_ToggleWireframe = NULL;
-HWND w_ToggleSolid     = NULL;
-HWND w_HorizontalFOV   = NULL;
-HWND w_VerticalFOV     = NULL;
+GLuint textVAO;
+GLuint textVBO;
+GLuint textprogram_id;
+GLuint texttexture_id;
+float textscale = 1.5f;
+
+HWND w_ToggleCW         = NULL;
+HWND w_ToggleCCW        = NULL;
+HWND w_ToggleGL         = NULL;
+HWND w_NearPlaneBox     = NULL;
+HWND w_FarPlaneBox      = NULL;
+HWND w_LookAtCheckbox   = NULL;
+HWND w_RedBox           = NULL;
+HWND w_GreenBox         = NULL;
+HWND w_BlueBox          = NULL;
+HWND w_TogglePoints     = NULL;
+HWND w_ToggleWireframe  = NULL;
+HWND w_ToggleSolid      = NULL;
+HWND w_HorizontalFOV    = NULL;
+HWND w_VerticalFOV      = NULL;
+HWND w_ToggleNoShading  = NULL;
+HWND w_ToggleGouraudAD  = NULL;
+HWND w_ToggleGouraudADS = NULL;
+HWND w_TogglePhong      = NULL;
 
 // callback functions
 void ErrorCallback(int error, const char *description);
@@ -152,6 +168,8 @@ GLuint CreateGpuProgram(GLuint vertex_shader_id, GLuint fragment_shader_id);
 
 GLuint      BuildTriangles(ModelObject model);
 ModelObject ReadModelFile(char *filename);
+
+void ShowFramesPerSecond();
 
 // windows.h functions
 LRESULT CALLBACK WindowProcedure(HWND hWnd, UINT msg, WPARAM wp, LPARAM lp);
@@ -195,10 +213,11 @@ int main( int argc, char** argv )
     AddControls(hWnd);
     MSG msg = { 0 };
     UpdateWindow(hWnd);
-    SendMessageW(w_LookAtCheckbox, BM_SETCHECK, g_LookAtCamera, 0);
-    SendMessageW(w_ToggleCW,       BM_SETCHECK, true,           0);
-    SendMessageW(w_ToggleGL,       BM_SETCHECK, true,           0);
-    SendMessageW(w_ToggleSolid,    BM_SETCHECK, true,           0);
+    SendMessageW(w_LookAtCheckbox,  BM_SETCHECK, g_LookAtCamera, 0);
+    SendMessageW(w_ToggleCW,        BM_SETCHECK, true,           0);
+    SendMessageW(w_ToggleGL,        BM_SETCHECK, true,           0);
+    SendMessageW(w_ToggleSolid,     BM_SETCHECK, true,           0);
+    SendMessageW(w_ToggleNoShading, BM_SETCHECK, true,           0);
 
     // initialize openGL
     int success = glfwInit();
@@ -208,8 +227,8 @@ int main( int argc, char** argv )
     }
     glfwSetErrorCallback(ErrorCallback);
 
-    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
-    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 5);
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
 
     g_GLWindow = glfwCreateWindow(800, 600, "CMP143", NULL, NULL);
@@ -238,18 +257,24 @@ int main( int argc, char** argv )
     GLint viewMatrixLocation       = glGetUniformLocation(program_id, "viewMatrix");
     GLint projectionMatrixLocation = glGetUniformLocation(program_id, "projectionMatrix");
     GLint colorVectorLocation      = glGetUniformLocation(program_id, "colorVector");
-
+    GLint lightPosLocation         = glGetUniformLocation(program_id, "lightPos");
+    
+    glUniform4f(lightPosLocation, 1.f, 1.f, -10.f, 1.f);
+    
     g_useClose2GLLocation = glGetUniformLocation(program_id, "useClose2GL");
     g_VertexArrayObject_id = -1;
 
     glFrontFace(GL_CW);
     glEnable(GL_CULL_FACE);
-
+    glEnable(GL_DEPTH_TEST);
+    
     glUniform1i(g_useClose2GLLocation, g_UseClose2GL);
 
     while (!glfwWindowShouldClose(g_GLWindow)) {
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
         glUseProgram(program_id);
         static const float background[] = { 1.0f, 1.0f, 1.0f, 0.0f };
+
 
         glClearBufferfv(GL_COLOR, 0, background);
 
@@ -329,7 +354,10 @@ int main( int argc, char** argv )
                 cameraView = cameraTarget - camera_position_c;
             }
         }
-
+        glUniform4f(lightPosLocation, camera_position_c.x,
+                                      camera_position_c.y,
+                                      camera_position_c.z,
+                                      1.f);
         g_ViewMatrix = Matrix_Camera_View(camera_position_c, cameraView, cameraUp);		
                
         g_ProjectionMatrix = Matrix_Perspective(g_vFov, g_hFov, g_ScreenRatio, g_NearPlane, g_FarPlane);
@@ -338,6 +366,7 @@ int main( int argc, char** argv )
         glUniformMatrix4fv(projectionMatrixLocation, 1 , GL_FALSE , glm::value_ptr(g_ProjectionMatrix));
 
         // rendering
+        ShowFramesPerSecond();
         if (g_VertexArrayObject_id != -1) {
             glUniform4f(colorVectorLocation, g_Red, g_Green, g_Blue, 1.0f);
             float max_x = g_VirtualScene["model"].max_coord.x;
@@ -385,7 +414,7 @@ int main( int argc, char** argv )
             }
             glUniformMatrix4fv(modelMatrixLocation, 1, GL_FALSE, glm::value_ptr(g_ModelMatrix));
         }
-
+        
         glfwSwapBuffers(g_GLWindow);
         glfwPollEvents();
     }
@@ -487,59 +516,72 @@ GLuint BuildTriangles(ModelObject model)
     glm::vec3 min_coord = glm::vec3(FLT_MAX, FLT_MAX, FLT_MAX);
     glm::vec3 max_coord = glm::vec3(FLT_MIN, FLT_MIN, FLT_MIN);
     int num_vertices = model.num_triangles * 3;
-    GLfloat model_coefficients[num_vertices * 4];
+    std::vector<float> normal_coefficients;
+    std::vector<float> model_coefficients;
     GLfloat close2gl_coefficients[num_vertices * 4];
-    int j = 0;
     for (int i = 0; i < model.num_triangles; i++) {
         Triangle triangle = model.triangles[i];
         // v0
-        // X
-        model_coefficients[j]   = triangle.v0.pos.x;
-        min_coord.x = (model_coefficients[j] < min_coord.x) ? model_coefficients[j] : min_coord.x;
-        max_coord.x = (model_coefficients[j] > max_coord.x) ? model_coefficients[j] : max_coord.x;
-        // Y
-        model_coefficients[j+1] = triangle.v0.pos.y;
-        min_coord.y = (model_coefficients[j+1] < min_coord.y) ? model_coefficients[j+1] : min_coord.y;
-        max_coord.y = (model_coefficients[j+1] > max_coord.y) ? model_coefficients[j+1] : max_coord.y;
-        // Z
-        model_coefficients[j+2] = triangle.v0.pos.z;
-        min_coord.z = (model_coefficients[j+2] < min_coord.z) ? model_coefficients[j+2] : min_coord.z;
-        max_coord.z = (model_coefficients[j+2] > max_coord.z) ? model_coefficients[j+2] : max_coord.z;
-        // W
-        model_coefficients[j+3] = 1.0f;
-        j+=4;
+        model_coefficients.push_back(triangle.v0.pos.x); // X
+        model_coefficients.push_back(triangle.v0.pos.y); // Y
+        model_coefficients.push_back(triangle.v0.pos.z); // Z
+        model_coefficients.push_back(1.0f); // W
+        normal_coefficients.push_back(triangle.v0.normal.x);
+        normal_coefficients.push_back(triangle.v0.normal.y);
+        normal_coefficients.push_back(triangle.v0.normal.z);
+        normal_coefficients.push_back(0.f);
+        
         // v1
-        // X
-        model_coefficients[j]   = triangle.v1.pos.x;
-        min_coord.x = (model_coefficients[j] < min_coord.x) ? model_coefficients[j] : min_coord.x;
-        max_coord.x = (model_coefficients[j] > max_coord.x) ? model_coefficients[j] : max_coord.x;
-        // Y
-        model_coefficients[j+1] = triangle.v1.pos.y;
-        min_coord.y = (model_coefficients[j+1] < min_coord.y) ? model_coefficients[j+1] : min_coord.y;
-        max_coord.y = (model_coefficients[j+1] > max_coord.y) ? model_coefficients[j+1] : max_coord.y;
-        // Z
-        model_coefficients[j+2] = triangle.v1.pos.z;
-        min_coord.z = (model_coefficients[j+2] < min_coord.z) ? model_coefficients[j+2] : min_coord.z;
-        max_coord.z = (model_coefficients[j+2] > max_coord.z) ? model_coefficients[j+2] : max_coord.z;
-        // W
-        model_coefficients[j+3] = 1.0f;
-        j+=4;
+        model_coefficients.push_back(triangle.v1.pos.x); // X
+        model_coefficients.push_back(triangle.v1.pos.y); // Y
+        model_coefficients.push_back(triangle.v1.pos.z); // Z
+        model_coefficients.push_back(1.0f); // W
+        normal_coefficients.push_back(triangle.v1.normal.x);
+        normal_coefficients.push_back(triangle.v1.normal.y);
+        normal_coefficients.push_back(triangle.v1.normal.z);
+        normal_coefficients.push_back(0.f);
+        
         // v2
-        // X
-        model_coefficients[j]   = triangle.v2.pos.x;
-        min_coord.x = (model_coefficients[j] < min_coord.x) ? model_coefficients[j] : min_coord.x;
-        max_coord.x = (model_coefficients[j] > max_coord.x) ? model_coefficients[j] : max_coord.x;
-        // Y
-        model_coefficients[j+1] = triangle.v2.pos.y;
-        min_coord.y = (model_coefficients[j+1] < min_coord.y) ? model_coefficients[j+1] : min_coord.y;
-        max_coord.y = (model_coefficients[j+1] > max_coord.y) ? model_coefficients[j+1] : max_coord.y;
-        // Z
-        model_coefficients[j+2] = triangle.v2.pos.z;
-        min_coord.z = (model_coefficients[j+2] < min_coord.z) ? model_coefficients[j+2] : min_coord.z;
-        max_coord.z = (model_coefficients[j+2] > max_coord.z) ? model_coefficients[j+2] : max_coord.z;
-        // W
-        model_coefficients[j+3] = 1.0f;
-        j+=4;
+        model_coefficients.push_back(triangle.v2.pos.x); // X
+        model_coefficients.push_back(triangle.v2.pos.y); // Y
+        model_coefficients.push_back(triangle.v2.pos.z); // Z
+        model_coefficients.push_back(1.0f); // W
+        normal_coefficients.push_back(triangle.v2.normal.x);
+        normal_coefficients.push_back(triangle.v2.normal.y);
+        normal_coefficients.push_back(triangle.v2.normal.z);
+        normal_coefficients.push_back(0.f);
+
+        min_coord.x = (triangle.v0.pos.x < min_coord.x) ? triangle.v0.pos.x : min_coord.x;
+        max_coord.x = (triangle.v0.pos.x > max_coord.x) ? triangle.v0.pos.x : max_coord.x;
+        min_coord.x = (triangle.v1.pos.x < min_coord.x) ? triangle.v1.pos.x : min_coord.x;
+        max_coord.x = (triangle.v1.pos.x > max_coord.x) ? triangle.v1.pos.x : max_coord.x;
+        min_coord.x = (triangle.v2.pos.x < min_coord.x) ? triangle.v2.pos.x : min_coord.x;
+        max_coord.x = (triangle.v2.pos.x > max_coord.x) ? triangle.v2.pos.x : max_coord.x;
+        
+        min_coord.y = (triangle.v0.pos.y < min_coord.y) ? triangle.v0.pos.y : min_coord.y;
+        max_coord.y = (triangle.v0.pos.y > max_coord.y) ? triangle.v0.pos.y : max_coord.y;
+        min_coord.y = (triangle.v1.pos.y < min_coord.y) ? triangle.v1.pos.y : min_coord.y;
+        max_coord.y = (triangle.v1.pos.y > max_coord.y) ? triangle.v1.pos.y : max_coord.y;
+        min_coord.y = (triangle.v2.pos.y < min_coord.y) ? triangle.v2.pos.y : min_coord.y;
+        max_coord.y = (triangle.v2.pos.y > max_coord.y) ? triangle.v2.pos.y : max_coord.y;
+        
+        min_coord.z = (triangle.v0.pos.z < min_coord.z) ? triangle.v0.pos.z : min_coord.z;
+        max_coord.z = (triangle.v0.pos.z > max_coord.z) ? triangle.v0.pos.z : max_coord.z;
+        min_coord.z = (triangle.v1.pos.z < min_coord.z) ? triangle.v1.pos.z : min_coord.z;
+        max_coord.z = (triangle.v1.pos.z > max_coord.z) ? triangle.v1.pos.z : max_coord.z;
+        min_coord.z = (triangle.v2.pos.z < min_coord.z) ? triangle.v2.pos.z : min_coord.z;
+        max_coord.z = (triangle.v2.pos.z > max_coord.z) ? triangle.v2.pos.z : max_coord.z;
+
+/*
+        normal_coefficients.push_back(triangle.face_normal.x);
+        normal_coefficients.push_back(triangle.face_normal.y);
+        normal_coefficients.push_back(triangle.face_normal.z);
+        } */
+ //       normal_coefficients.push_back(0.f);
+/*        printf("%f\t%f\t%f\t%f\n", normal_coefficients[k],
+                                   normal_coefficients[k+1],
+                                   normal_coefficients[k+2],
+                                   normal_coefficients[k+3]);*/        
     }
     if (g_UseClose2GL) {
         int clipped_vertices = 0;
@@ -684,7 +726,8 @@ GLuint BuildTriangles(ModelObject model)
 
         glBindVertexArray(0);
         return vertex_array_object_id;
-    } else {
+    } 
+    else {
         GLuint VBO_model_coefficients_id;
         glGenBuffers(1, &VBO_model_coefficients_id);
 
@@ -692,15 +735,15 @@ GLuint BuildTriangles(ModelObject model)
         glGenVertexArrays(1, &vertex_array_object_id);
         glBindVertexArray(vertex_array_object_id);
         glBindBuffer(GL_ARRAY_BUFFER, VBO_model_coefficients_id);
-        glBufferData(GL_ARRAY_BUFFER, sizeof(model_coefficients), NULL, GL_STATIC_DRAW);
-        glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(model_coefficients), model_coefficients);
+        glBufferData(GL_ARRAY_BUFFER, model_coefficients.size() * sizeof(float), NULL, GL_STATIC_DRAW);
+        glBufferSubData(GL_ARRAY_BUFFER, 0, model_coefficients.size() * sizeof(float), model_coefficients.data());
 
         GLuint location = 0;
         GLint number_of_dimensions = 4;
         glVertexAttribPointer(location, number_of_dimensions, GL_FLOAT, GL_FALSE, 0, 0);
         glEnableVertexAttribArray(location);
         glBindBuffer(GL_ARRAY_BUFFER, 0);
-
+        
         GLuint indices[num_vertices];
         for (int i = 0; i < num_vertices; i++) {
             indices[i] = i;
@@ -720,6 +763,19 @@ GLuint BuildTriangles(ModelObject model)
         glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, indices_id);
         glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices), NULL, GL_STATIC_DRAW);
         glBufferSubData(GL_ELEMENT_ARRAY_BUFFER, 0, sizeof(indices), indices);
+
+ 
+        GLuint VBO_normal_coefficients_id;
+        glGenBuffers(1, &VBO_normal_coefficients_id);
+        glBindBuffer(GL_ARRAY_BUFFER, VBO_normal_coefficients_id);
+        glBufferData(GL_ARRAY_BUFFER, normal_coefficients.size() * sizeof(float), NULL, GL_STATIC_DRAW);
+        glBufferSubData(GL_ARRAY_BUFFER, 0, normal_coefficients.size() * sizeof(float), normal_coefficients.data());
+        location = 2;
+        number_of_dimensions = 4;
+        glVertexAttribPointer(location, number_of_dimensions, GL_FLOAT, GL_FALSE, 0, 0);
+        glEnableVertexAttribArray(location);
+        glBindBuffer(GL_ARRAY_BUFFER, 0);
+
 
         glBindVertexArray(0);
         return vertex_array_object_id;
@@ -1443,4 +1499,74 @@ void AddControls(HWND hWnd)
         (HMENU)PROC_RESET_WINDOW,
         (HINSTANCE)GetWindowLongPtr(hWnd, GWLP_HINSTANCE),
         NULL);
+        
+    w_ToggleNoShading = CreateWindowW(
+        L"BUTTON",
+        L"NO SHADING",
+        WS_CHILD | WS_VISIBLE | BS_AUTORADIOBUTTON | WS_GROUP,
+        290, 220,
+        250, 25,
+        hWnd,
+        (HMENU)PROC_NO_SHADING,
+        (HINSTANCE)GetWindowLongPtr(hWnd, GWLP_HINSTANCE),
+        NULL);
+        
+    w_ToggleGouraudAD = CreateWindowW(
+        L"BUTTON",
+        L"GOURAUD AD",
+        WS_CHILD | WS_VISIBLE | BS_AUTORADIOBUTTON,
+        290, 260,
+        250, 25,
+        hWnd,
+        (HMENU)PROC_GOURAUD_AD,
+        (HINSTANCE)GetWindowLongPtr(hWnd, GWLP_HINSTANCE),
+        NULL);
+        
+    w_ToggleGouraudADS = CreateWindowW(
+        L"BUTTON",
+        L"GOURAUD ADS",
+        WS_CHILD | WS_VISIBLE | BS_AUTORADIOBUTTON,
+        290, 300,
+        250, 25,
+        hWnd,
+        (HMENU)PROC_GOURAUD_ADS,
+        (HINSTANCE)GetWindowLongPtr(hWnd, GWLP_HINSTANCE),
+        NULL);
+        
+    w_TogglePhong = CreateWindowW(
+        L"BUTTON",
+        L"PHONG",
+        WS_CHILD | WS_VISIBLE | BS_AUTORADIOBUTTON,
+        290, 340,
+        250, 25,
+        hWnd,
+        (HMENU)PROC_PHONG,
+        (HINSTANCE)GetWindowLongPtr(hWnd, GWLP_HINSTANCE),
+        NULL);
+}
+
+void ShowFramesPerSecond()
+{
+    // Variáveis estáticas (static) mantém seus valores entre chamadas
+    // subsequentes da função!
+    static float old_seconds = (float)glfwGetTime();
+    static int   ellapsed_frames = 0;
+    static char  buffer[20] = "CMP143 - ?? fps";
+
+    ellapsed_frames += 1;
+
+    // Recuperamos o número de segundos que passou desde a execução do programa
+    float seconds = (float)glfwGetTime();
+
+    // Número de segundos desde o último cálculo do fps
+    float ellapsed_seconds = seconds - old_seconds;
+
+    if ( ellapsed_seconds > 1.0f )
+    {
+        snprintf(buffer, 20, "CMP143 - %.2f fps", ellapsed_frames / ellapsed_seconds);
+
+        old_seconds = seconds;
+        ellapsed_frames = 0;
+    }
+    glfwSetWindowTitle(g_GLWindow, buffer);
 }

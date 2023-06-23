@@ -368,10 +368,17 @@ CMakeFiles/CMP143.dir/src/main.cpp.obj: ../src/main.cpp \
   C:/MinGW/lib/gcc/mingw32/6.3.0/include/c++/array \
   C:/MinGW/lib/gcc/mingw32/6.3.0/include/c++/bits/uses_allocator.h \
   C:/MinGW/lib/gcc/mingw32/6.3.0/include/c++/bits/stl_multimap.h \
+  C:/MinGW/lib/gcc/mingw32/6.3.0/include/c++/vector \
+  C:/MinGW/lib/gcc/mingw32/6.3.0/include/c++/bits/stl_construct.h \
+  C:/MinGW/lib/gcc/mingw32/6.3.0/include/c++/bits/stl_uninitialized.h \
+  C:/MinGW/lib/gcc/mingw32/6.3.0/include/c++/bits/stl_vector.h \
+  C:/MinGW/lib/gcc/mingw32/6.3.0/include/c++/bits/stl_bvector.h \
+  C:/MinGW/lib/gcc/mingw32/6.3.0/include/c++/bits/vector.tcc \
   C:/MinGW/lib/gcc/mingw32/6.3.0/include/c++/math.h \
   C:/MinGW/lib/gcc/mingw32/6.3.0/include/float.h \
   C:/MinGW/include/float.h \
   ../include/matrices.h \
+  ../include/dejavufont.h \
   C:/MinGW/include/windows.h \
   C:/MinGW/include/commdlg.h \
   C:/MinGW/include/unknwn.h \
@@ -513,6 +520,8 @@ C:/MinGW/include/inttypes.h:
 C:/MinGW/lib/gcc/mingw32/6.3.0/include/c++/mingw32/bits/os_defines.h:
 
 ../include/glm/matrix.hpp:
+
+C:/MinGW/lib/gcc/mingw32/6.3.0/include/c++/bits/stl_uninitialized.h:
 
 C:/MinGW/lib/gcc/mingw32/6.3.0/include/c++/mingw32/bits/gthr.h:
 
@@ -938,6 +947,8 @@ C:/MinGW/include/sys/stat.h:
 
 ../include/matrices.h:
 
+C:/MinGW/lib/gcc/mingw32/6.3.0/include/c++/bits/stl_construct.h:
+
 C:/MinGW/include/io.h:
 
 C:/MinGW/lib/gcc/mingw32/6.3.0/include/c++/bits/stl_pair.h:
@@ -1026,6 +1037,8 @@ C:/MinGW/lib/gcc/mingw32/6.3.0/include/c++/cwctype:
 
 C:/MinGW/lib/gcc/mingw32/6.3.0/include/c++/bits/streambuf_iterator.h:
 
+C:/MinGW/lib/gcc/mingw32/6.3.0/include/c++/bits/vector.tcc:
+
 C:/MinGW/lib/gcc/mingw32/6.3.0/include/c++/bits/locale_facets.tcc:
 
 C:/MinGW/lib/gcc/mingw32/6.3.0/include/c++/bits/istream.tcc:
@@ -1049,6 +1062,14 @@ C:/MinGW/include/rpcndr.h:
 C:/MinGW/lib/gcc/mingw32/6.3.0/include/c++/bits/uses_allocator.h:
 
 C:/MinGW/lib/gcc/mingw32/6.3.0/include/c++/bits/stl_multimap.h:
+
+C:/MinGW/lib/gcc/mingw32/6.3.0/include/c++/vector:
+
+../include/dejavufont.h:
+
+C:/MinGW/lib/gcc/mingw32/6.3.0/include/c++/bits/stl_vector.h:
+
+C:/MinGW/lib/gcc/mingw32/6.3.0/include/c++/bits/stl_bvector.h:
 
 C:/MinGW/lib/gcc/mingw32/6.3.0/include/float.h:
 

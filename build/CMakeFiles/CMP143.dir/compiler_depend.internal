@@ -370,10 +370,17 @@ CMakeFiles/CMP143.dir/src/main.cpp.obj
  C:/MinGW/lib/gcc/mingw32/6.3.0/include/c++/array
  C:/MinGW/lib/gcc/mingw32/6.3.0/include/c++/bits/uses_allocator.h
  C:/MinGW/lib/gcc/mingw32/6.3.0/include/c++/bits/stl_multimap.h
+ C:/MinGW/lib/gcc/mingw32/6.3.0/include/c++/vector
+ C:/MinGW/lib/gcc/mingw32/6.3.0/include/c++/bits/stl_construct.h
+ C:/MinGW/lib/gcc/mingw32/6.3.0/include/c++/bits/stl_uninitialized.h
+ C:/MinGW/lib/gcc/mingw32/6.3.0/include/c++/bits/stl_vector.h
+ C:/MinGW/lib/gcc/mingw32/6.3.0/include/c++/bits/stl_bvector.h
+ C:/MinGW/lib/gcc/mingw32/6.3.0/include/c++/bits/vector.tcc
  C:/MinGW/lib/gcc/mingw32/6.3.0/include/c++/math.h
  C:/MinGW/lib/gcc/mingw32/6.3.0/include/float.h
  C:/MinGW/include/float.h
  D:/UFRGS/2023-1/Computacao Grafica/CMP143/include/matrices.h
+ D:/UFRGS/2023-1/Computacao Grafica/CMP143/include/dejavufont.h
  C:/MinGW/include/windows.h
  C:/MinGW/include/commdlg.h
  C:/MinGW/include/unknwn.h
