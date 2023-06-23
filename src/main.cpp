@@ -126,7 +126,12 @@ ModelObject g_Model;
 
 GLFWwindow *g_GLWindow;
 GLuint g_VertexArrayObject_id;
-GLint  g_useClose2GLLocation;
+GLint  g_UseClose2GLLocation;
+
+GLint g_VertexShaderTypeLocation;
+GLint g_FragmentShaderTypeLocation;
+int   g_VertexShaderType;
+int   g_FragmentShaderType;
 
 GLuint textVAO;
 GLuint textVBO;
@@ -253,29 +258,32 @@ int main( int argc, char** argv )
     GLuint fragment_shader_id = LoadShader_Fragment("../triangles.frag");
     GLuint program_id = CreateGpuProgram(vertex_shader_id, fragment_shader_id);
 
-    GLint modelMatrixLocation      = glGetUniformLocation(program_id, "modelMatrix");
-    GLint viewMatrixLocation       = glGetUniformLocation(program_id, "viewMatrix");
+    GLint modelMatrixLocation      = glGetUniformLocation(program_id, "modelMatrix"     );
+    GLint viewMatrixLocation       = glGetUniformLocation(program_id, "viewMatrix"      );
     GLint projectionMatrixLocation = glGetUniformLocation(program_id, "projectionMatrix");
-    GLint colorVectorLocation      = glGetUniformLocation(program_id, "colorVector");
-    GLint lightPosLocation         = glGetUniformLocation(program_id, "lightPos");
+    GLint colorVectorLocation      = glGetUniformLocation(program_id, "colorVector"     );
+
+    g_VertexShaderTypeLocation   = glGetUniformLocation(program_id, "vertexShaderType");
+    g_FragmentShaderTypeLocation = glGetUniformLocation(program_id, "fragmentShaderType");
+    g_VertexShaderType   = 0;
+    g_FragmentShaderType = 0;
     
-    glUniform4f(lightPosLocation, 1.f, 1.f, -10.f, 1.f);
-    
-    g_useClose2GLLocation = glGetUniformLocation(program_id, "useClose2GL");
+    g_UseClose2GLLocation = glGetUniformLocation(program_id, "useClose2GL");
     g_VertexArrayObject_id = -1;
 
     glFrontFace(GL_CW);
     glEnable(GL_CULL_FACE);
     glEnable(GL_DEPTH_TEST);
     
-    glUniform1i(g_useClose2GLLocation, g_UseClose2GL);
+    glUniform1i(g_UseClose2GLLocation       , g_UseClose2GL       );
+    glUniform1i(g_VertexShaderTypeLocation  , g_VertexShaderType  );
+    glUniform1i(g_FragmentShaderTypeLocation, g_FragmentShaderType);
 
     while (!glfwWindowShouldClose(g_GLWindow)) {
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
         glUseProgram(program_id);
+
         static const float background[] = { 1.0f, 1.0f, 1.0f, 0.0f };
-
-
         glClearBufferfv(GL_COLOR, 0, background);
 
         float r = g_CameraDistance;
@@ -354,10 +362,6 @@ int main( int argc, char** argv )
                 cameraView = cameraTarget - camera_position_c;
             }
         }
-        glUniform4f(lightPosLocation, camera_position_c.x,
-                                      camera_position_c.y,
-                                      camera_position_c.z,
-                                      1.f);
         g_ViewMatrix = Matrix_Camera_View(camera_position_c, cameraView, cameraUp);		
                
         g_ProjectionMatrix = Matrix_Perspective(g_vFov, g_hFov, g_ScreenRatio, g_NearPlane, g_FarPlane);
@@ -570,18 +574,7 @@ GLuint BuildTriangles(ModelObject model)
         min_coord.z = (triangle.v1.pos.z < min_coord.z) ? triangle.v1.pos.z : min_coord.z;
         max_coord.z = (triangle.v1.pos.z > max_coord.z) ? triangle.v1.pos.z : max_coord.z;
         min_coord.z = (triangle.v2.pos.z < min_coord.z) ? triangle.v2.pos.z : min_coord.z;
-        max_coord.z = (triangle.v2.pos.z > max_coord.z) ? triangle.v2.pos.z : max_coord.z;
-
-/*
-        normal_coefficients.push_back(triangle.face_normal.x);
-        normal_coefficients.push_back(triangle.face_normal.y);
-        normal_coefficients.push_back(triangle.face_normal.z);
-        } */
- //       normal_coefficients.push_back(0.f);
-/*        printf("%f\t%f\t%f\t%f\n", normal_coefficients[k],
-                                   normal_coefficients[k+1],
-                                   normal_coefficients[k+2],
-                                   normal_coefficients[k+3]);*/        
+        max_coord.z = (triangle.v2.pos.z > max_coord.z) ? triangle.v2.pos.z : max_coord.z;    
     }
     if (g_UseClose2GL) {
         int clipped_vertices = 0;
@@ -1165,7 +1158,7 @@ LRESULT CALLBACK WindowProcedure(HWND hWnd, UINT msg, WPARAM wp, LPARAM lp)
                 printf("usando close2GL\n");
             }
             g_VertexArrayObject_id = BuildTriangles(g_Model);
-            glUniform1i(g_useClose2GLLocation, g_UseClose2GL);
+            glUniform1i(g_UseClose2GLLocation, g_UseClose2GL);
             break;
           }
           case PROC_TOGGLE_SOLID: {
@@ -1206,6 +1199,38 @@ LRESULT CALLBACK WindowProcedure(HWND hWnd, UINT msg, WPARAM wp, LPARAM lp)
           case PROC_RESET_WINDOW: {
             glfwSetWindowSize(g_GLWindow, 800, 600);
             g_ScreenRatio = 800.0f/600.0f;
+          }
+          case PROC_NO_SHADING: {
+            g_VertexShaderType = 0;
+            g_FragmentShaderType = 0;
+            glUniform1i(g_VertexShaderTypeLocation, g_VertexShaderType);
+            glUniform1i(g_FragmentShaderTypeLocation, g_FragmentShaderType);
+            printf("No shading\n");
+            break;
+          }
+          case PROC_GOURAUD_AD: {
+            g_VertexShaderType = 1;  
+            g_FragmentShaderType = 0;
+            glUniform1i(g_VertexShaderTypeLocation, g_VertexShaderType);
+            glUniform1i(g_FragmentShaderTypeLocation, g_FragmentShaderType);
+            printf("Gouraud AD shading\n");
+            break;
+          }
+          case PROC_GOURAUD_ADS: {
+            g_VertexShaderType = 2;
+            g_FragmentShaderType = 0;
+            glUniform1i(g_VertexShaderTypeLocation, g_VertexShaderType);
+            glUniform1i(g_FragmentShaderTypeLocation, g_FragmentShaderType);
+            printf("Gouraud ADS shading\n");
+            break;
+          }
+          case PROC_PHONG: {
+            g_VertexShaderType = 0;
+            g_FragmentShaderType = 1;
+            glUniform1i(g_VertexShaderTypeLocation, g_VertexShaderType);
+            glUniform1i(g_FragmentShaderTypeLocation, g_FragmentShaderType);
+            printf("Phong shading\n");
+            break;
           }
         }
         break;
