@@ -17,7 +17,6 @@
 #include <float.h>
 
 #include "matrices.h"
-#include "dejavufont.h"
 
 #include <Windows.h>
 #include <sdkddkver.h>
