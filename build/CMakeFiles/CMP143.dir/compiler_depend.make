@@ -378,7 +378,6 @@ CMakeFiles/CMP143.dir/src/main.cpp.obj: ../src/main.cpp \
   C:/MinGW/lib/gcc/mingw32/6.3.0/include/float.h \
   C:/MinGW/include/float.h \
   ../include/matrices.h \
-  ../include/dejavufont.h \
   C:/MinGW/include/windows.h \
   C:/MinGW/include/commdlg.h \
   C:/MinGW/include/unknwn.h \
@@ -1064,8 +1063,6 @@ C:/MinGW/lib/gcc/mingw32/6.3.0/include/c++/bits/uses_allocator.h:
 C:/MinGW/lib/gcc/mingw32/6.3.0/include/c++/bits/stl_multimap.h:
 
 C:/MinGW/lib/gcc/mingw32/6.3.0/include/c++/vector:
-
-../include/dejavufont.h:
 
 C:/MinGW/lib/gcc/mingw32/6.3.0/include/c++/bits/stl_vector.h:
 
