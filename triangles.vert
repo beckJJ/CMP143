@@ -3,6 +3,7 @@
 layout( location = 0 ) in vec4 model_coefficients;
 layout( location = 1 ) in vec4 color_coefficients;
 layout( location = 2 ) in vec4 normal_coefficients;
+layout( location = 3 ) in vec2 texture_coefficients;
 
 uniform vec4 colorVector;
 uniform mat4 modelMatrix;
@@ -22,6 +23,7 @@ out vec4 fragColor;
 out vec4 worldPosition;
 out vec4 modelPosition;
 out vec4 fragNormal;
+out vec2 texCoords;
 
 subroutine vec4 vertexShader();
 
@@ -80,7 +82,7 @@ subroutine (modelCoords) vec4 close2GLCoords() {
 subroutine (modelCoords) vec4 openGLCoords() {
     worldPosition = modelMatrix * model_coefficients;
     fragNormal = inverse(transpose(modelMatrix)) * normal_coefficients;
-    fragNormal.w = 0.0;
+    fragNormal.w = 0.0; 
     fragNormal = normalize(normal_coefficients);
     
     return projectionMatrix * viewMatrix * modelMatrix * model_coefficients;
@@ -91,6 +93,7 @@ void main()
 	if (useClose2GL) {
 		gl_Position = close2GLCoords();
         fragColor = noVertexShader();
+        texCoords = texture_coefficients;
 	} else {
 		gl_Position = openGLCoords();
         switch(vertexShaderType) {

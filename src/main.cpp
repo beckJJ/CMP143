@@ -87,6 +87,25 @@ struct SceneObject {
     glm::vec3   max_coord;
 };
 
+struct ScreenPixel {
+    unsigned char r;
+    unsigned char g;
+    unsigned char b;
+    unsigned char a;
+    float         z;
+};
+
+struct ColorBuffer {
+    int          width;
+    int          height;
+    ScreenPixel *pixels;
+};
+
+inline int get_index(ColorBuffer buffer, int i, int j)
+{
+    return (i + (j * buffer.width));
+}
+
 // global variables
 std::map<const char*, SceneObject> g_VirtualScene;
 double g_LastCursorPosX, g_LastCursorPosY;
@@ -112,9 +131,15 @@ bool g_Z_pressed       = false;
 bool g_LookAtCamera    = false;
 bool g_UseClose2GL     = false;
 bool g_TogglePoints    = false;
+bool g_ToggleSolid     = true;
+bool g_ToggleWireframe = false;
 bool g_ToggleCW        = true; // true = CW, false = CCW
+bool g_ToggleGouraud   = false; // gouraud shading
+bool g_TogglePhong     = false; // phong light
 int g_ScreenWidth  = 800;
 int g_ScreenHeight = 600;
+
+ColorBuffer g_ColorBuffer;
 
 glm::mat4 g_ModelMatrix;
 glm::mat4 g_ViewMatrix;
@@ -126,17 +151,12 @@ ModelObject g_Model;
 GLFWwindow *g_GLWindow;
 GLuint g_VertexArrayObject_id;
 GLint  g_UseClose2GLLocation;
+GLuint g_Texture_id;
 
 GLint g_VertexShaderTypeLocation;
 GLint g_FragmentShaderTypeLocation;
 int   g_VertexShaderType;
 int   g_FragmentShaderType;
-
-GLuint textVAO;
-GLuint textVBO;
-GLuint textprogram_id;
-GLuint texttexture_id;
-float textscale = 1.5f;
 
 HWND w_ToggleCW         = NULL;
 HWND w_ToggleCCW        = NULL;
@@ -165,11 +185,13 @@ void CursorPosCallback(GLFWwindow *window, double xpos, double ypos);
 void FramebufferSizeCallback(GLFWwindow *window, int width, int height);
 
 // shader functions
+void   LoadTexture(unsigned char *textureData, int width, int height);
 void   LoadShader(const char *filename, GLuint shader_id);
 GLuint LoadShader_Vertex(const char *filename);
 GLuint LoadShader_Fragment(const char *filename);
 GLuint CreateGpuProgram(GLuint vertex_shader_id, GLuint fragment_shader_id);
 
+void DrawTriangle(glm::vec4 v1, glm::vec4 v2, glm::vec4 v3, glm::vec3 c1, glm::vec3 c2, glm::vec3 c3);
 GLuint      BuildTriangles(ModelObject model);
 ModelObject ReadModelFile(char *filename);
 
@@ -261,13 +283,14 @@ int main( int argc, char** argv )
     GLint viewMatrixLocation       = glGetUniformLocation(program_id, "viewMatrix"      );
     GLint projectionMatrixLocation = glGetUniformLocation(program_id, "projectionMatrix");
     GLint colorVectorLocation      = glGetUniformLocation(program_id, "colorVector"     );
-
+    GLint textureSamplerLocation   = glGetUniformLocation(program_id, "textureSampler"  );
+    
     g_VertexShaderTypeLocation   = glGetUniformLocation(program_id, "vertexShaderType");
     g_FragmentShaderTypeLocation = glGetUniformLocation(program_id, "fragmentShaderType");
     g_VertexShaderType   = 0;
     g_FragmentShaderType = 0;
     
-    g_UseClose2GLLocation = glGetUniformLocation(program_id, "useClose2GL");
+    g_UseClose2GLLocation     = glGetUniformLocation(program_id, "useClose2GL");
     g_VertexArrayObject_id = -1;
 
     glFrontFace(GL_CW);
@@ -277,7 +300,32 @@ int main( int argc, char** argv )
     glUniform1i(g_UseClose2GLLocation       , g_UseClose2GL       );
     glUniform1i(g_VertexShaderTypeLocation  , g_VertexShaderType  );
     glUniform1i(g_FragmentShaderTypeLocation, g_FragmentShaderType);
+    glUniform1i(textureSamplerLocation, 0);
+    
+    //initialize back and front buffers
+    g_ColorBuffer.width  = g_ScreenWidth;
+    g_ColorBuffer.height = g_ScreenHeight;
+    g_ColorBuffer.pixels = (ScreenPixel*)calloc(g_ScreenHeight * g_ScreenWidth, sizeof(ScreenPixel));
+    
+    std::vector<unsigned char> baseTexture;
+    for (int i = 0; i < g_ScreenWidth; i++) {
+        for (int j = 0; j < g_ScreenHeight; j++) {
+            int index = get_index(g_ColorBuffer, i, j);
+            g_ColorBuffer.pixels[index].r = 255;
+            g_ColorBuffer.pixels[index].g = 255;
+            g_ColorBuffer.pixels[index].b = 255;
+            g_ColorBuffer.pixels[index].a = 255;
+            g_ColorBuffer.pixels[index].z = -FLT_MAX;
 
+            baseTexture.push_back(255);
+            baseTexture.push_back(255);
+            baseTexture.push_back(255);
+            baseTexture.push_back(255);
+        }
+    }
+    
+    LoadTexture(baseTexture.data(), g_ScreenWidth, g_ScreenHeight);
+    
     while (!glfwWindowShouldClose(g_GLWindow)) {
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
         glUseProgram(program_id);
@@ -389,7 +437,7 @@ int main( int argc, char** argv )
             scaling_factor = (size_z > scaling_factor) ? size_z : scaling_factor;
 
             if (g_UseClose2GL) {
-                g_VertexArrayObject_id = BuildTriangles(g_Model);
+                g_VertexArrayObject_id = BuildTriangles(g_Model);                
             }
             glBindVertexArray(g_VertexArrayObject_id);
 
@@ -399,23 +447,15 @@ int main( int argc, char** argv )
             g_ModelMatrix = glm::scale(g_ModelMatrix, objectScale);
             g_ModelMatrix = glm::translate(g_ModelMatrix, objectTranslate);
 
-            if (g_TogglePoints) {
-                glDrawElements(
-                    GL_POINTS,
-                    g_VirtualScene["model"].num_indices,
-                    GL_UNSIGNED_INT,
-                    (void*)g_VirtualScene["model"].first_index
-                );
+            glDrawElements(
+                g_VirtualScene["model"].rendering_mode,
+                g_VirtualScene["model"].num_indices,
+                GL_UNSIGNED_INT,
+                (void*)g_VirtualScene["model"].first_index
+            );
 
-            } else {
-                glDrawElements(
-                    g_VirtualScene["model"].rendering_mode,
-                    g_VirtualScene["model"].num_indices,
-                    GL_UNSIGNED_INT,
-                    (void*)g_VirtualScene["model"].first_index
-                );
-            }
             glUniformMatrix4fv(modelMatrixLocation, 1, GL_FALSE, glm::value_ptr(g_ModelMatrix));
+            glBindVertexArray(0);
         }
         
         glfwSwapBuffers(g_GLWindow);
@@ -426,6 +466,20 @@ int main( int argc, char** argv )
 
     glfwTerminate();
     return 0;
+}
+
+void LoadTexture(unsigned char *textureData, int width, int height)
+{
+    GLuint texture_id;
+    GLuint sampler_id;
+    glGenTextures(1, &texture_id);
+    glGenSamplers(1, &sampler_id);
+
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, texture_id);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, textureData);
+    glGenerateMipmap(GL_TEXTURE_2D);
+    glBindSampler(0, sampler_id);
 }
 
 ModelObject ReadModelFile(char *filename)
@@ -514,6 +568,855 @@ ModelObject ReadModelFile(char *filename)
     return model;
 }
 
+void DrawTriangle(glm::vec4 v1, glm::vec4 v2, glm::vec4 v3, glm::vec3 c1, glm::vec3 c2, glm::vec3 c3)
+{
+    bool change = false;
+    // verificar se os três vertices estão dentro da tela
+    if (! (v1.x > 0 && v1.x < g_ScreenWidth && v1.y > 0 && v1.y < g_ScreenHeight &&
+           v2.x > 0 && v2.x < g_ScreenWidth && v2.y > 0 && v2.y < g_ScreenHeight &&
+           v3.x > 0 && v3.x < g_ScreenWidth && v3.y > 0 && v3.y < g_ScreenHeight)  ) {
+        return;
+    }
+    
+    if (g_TogglePoints) {
+        int index = get_index(g_ColorBuffer, floor(v1.x), floor(v1.y));
+        if (v1.z < g_ColorBuffer.pixels[index].z) {
+            g_ColorBuffer.pixels[index].r = g_Red   * 255;
+            g_ColorBuffer.pixels[index].g = g_Green * 255;
+            g_ColorBuffer.pixels[index].b = g_Blue  * 255;
+            g_ColorBuffer.pixels[index].a = 255;
+            g_ColorBuffer.pixels[index].z = v1.z;
+        }
+        index = get_index(g_ColorBuffer, floor(v2.x), floor(v2.y));
+        if (v2.z < g_ColorBuffer.pixels[index].z) {
+            g_ColorBuffer.pixels[index].r = g_Red   * 255;
+            g_ColorBuffer.pixels[index].g = g_Green * 255;
+            g_ColorBuffer.pixels[index].b = g_Blue  * 255;
+            g_ColorBuffer.pixels[index].a = 255;
+            g_ColorBuffer.pixels[index].z = v2.z;
+        }
+        index = get_index(g_ColorBuffer, floor(v3.x), floor(v3.y));
+        if (v3.z < g_ColorBuffer.pixels[index].z) {
+            g_ColorBuffer.pixels[index].r = g_Red   * 255;
+            g_ColorBuffer.pixels[index].g = g_Green * 255;
+            g_ColorBuffer.pixels[index].b = g_Blue  * 255;
+            g_ColorBuffer.pixels[index].a = 255;
+            g_ColorBuffer.pixels[index].z = v3.z;
+        }
+        return;
+    }
+    
+    // desenhar primeiro os vertices
+    int index = get_index(g_ColorBuffer, floor(v1.x), floor(v1.y));
+    if (v1.z < g_ColorBuffer.pixels[index].z) {
+        g_ColorBuffer.pixels[index].r = c1.x * 255;
+        g_ColorBuffer.pixels[index].g = c1.y * 255;
+        g_ColorBuffer.pixels[index].b = c1.z * 255;
+        g_ColorBuffer.pixels[index].a = 255;
+        g_ColorBuffer.pixels[index].z = v1.z;
+    }
+    index = get_index(g_ColorBuffer, floor(v2.x), floor(v2.y));
+    if (v2.z < g_ColorBuffer.pixels[index].z) {
+        g_ColorBuffer.pixels[index].r = c2.x * 255;
+        g_ColorBuffer.pixels[index].g = c2.y * 255;
+        g_ColorBuffer.pixels[index].b = c2.z * 255;
+        g_ColorBuffer.pixels[index].a = 255;
+        g_ColorBuffer.pixels[index].z = v2.z;
+    }
+    index = get_index(g_ColorBuffer, floor(v3.x), floor(v3.y));
+    if (v3.z < g_ColorBuffer.pixels[index].z) {
+        g_ColorBuffer.pixels[index].r = c3.x * 255;
+        g_ColorBuffer.pixels[index].g = c3.y * 255;
+        g_ColorBuffer.pixels[index].b = c3.z * 255;
+        g_ColorBuffer.pixels[index].a = 255;
+        g_ColorBuffer.pixels[index].z = v3.z;
+    }
+    
+
+    
+    // desenhar as arestas
+    // find topmost vertex
+    int topmost = 0;
+    if (v1.y <= v2.y && v1.y <= v3.y) {
+        topmost = 1;
+    } else if (v2.y <= v1.y && v2.y <= v3.y) {
+        topmost = 2;
+    } else if (v3.y <= v1.y && v3.y <= v2.y) {
+        topmost = 3;
+    }
+    switch (topmost) {
+      case 1: {
+        float dx1 = v2.x-v1.x; float dy1 = v2.y-v1.y; float dz1 = v2.z-v1.z;
+        float dx2 = v3.x-v1.x; float dy2 = v3.y-v1.y; float dz2 = v3.z-v1.z;
+        float dr1 = c2.x-c1.x; float dg1 = c2.y-c1.y; float db1 = c2.z-c1.z;
+        float dr2 = c3.x-c1.x; float dg2 = c3.y-c1.y; float db2 = c3.z-c1.z;
+        float x0 = v1.x;       float y0 = v1.y;       float z0 = v1.z;
+        float r0 = c1.x;       float g0 = c1.y;       float b0 = c1.z;
+        float inc1x = dx1/dy1; float inc1z = dz1/dy1;
+        float inc2x = dx2/dy2; float inc2z = dz2/dy2;
+        float inc1r = dr1/dy1; float inc1g = dg1/dy1; float inc1b = db1/dy1;
+        float inc2r = dr2/dy2; float inc2g = dg2/dy2; float inc2b = db2/dy2;
+        // start with v2-v1 and v3-v1 as active edges
+        float xe1 = x0; float xe2 = x0;
+        float ze1 = z0; float ze2 = z0;
+        float re1 = r0; float ge1 = g0; float be1 = b0;
+        float re2 = r0; float ge2 = g0; float be2 = b0;
+        y0 += 1;
+        while (y0 <= v2.y && y0 <= v3.y) {
+            xe1 += inc1x; xe2 += inc2x;
+            if (y0 >= g_ScreenHeight || xe1 >= g_ScreenWidth || xe1 < 0 || xe2 >= g_ScreenWidth || xe2 < 0) {
+                break;
+            }
+            ze1 += inc1z; ze2 += inc2z;
+            re1 += inc1r; ge1 += inc1g; be1 += inc1b;
+            re2 += inc2r; ge2 += inc2g; be2 += inc2b;
+            int xini = 0, xf = 0;
+            float zini, zf;
+            float rini, gini, bini;
+            float rf, gf, bf;
+            if (floor(xe1) > floor(xe2)) {
+                xini = floor(xe2); xf = floor(xe1);
+                zini = ze2;        zf = ze1;
+                rini = re2;        rf = re1;
+                gini = ge2;        gf = ge1;
+                bini = be2;        bf = be1;
+            } else {
+                xini = floor(xe1); xf = floor(xe2);
+                zini = ze1;        zf = ze2;
+                rini = re1;        rf = re2;
+                gini = ge1;        gf = ge2;
+                bini = be1;        bf = be2;
+            }
+            int pxTotal = xf - xini;
+            float zstep = (float)(zf - zini)/(float)pxTotal;
+            float rstep = (float)(rf - rini)/(float)pxTotal;
+            float gstep = (float)(gf - gini)/(float)pxTotal;
+            float bstep = (float)(bf - bini)/(float)pxTotal;
+            for (; xini <= xf; xini++) {
+                index = get_index(g_ColorBuffer, floor(xini), floor(y0));
+                if (zini < g_ColorBuffer.pixels[index].z) {
+                    g_ColorBuffer.pixels[index].r = rini * 255;
+                    g_ColorBuffer.pixels[index].g = gini * 255;
+                    g_ColorBuffer.pixels[index].b = bini * 255;
+                    g_ColorBuffer.pixels[index].a = 255;
+                    g_ColorBuffer.pixels[index].z = zini;
+                }
+                zini += zstep;
+                rini += rstep;
+                gini += gstep;
+                bini += bstep;
+            }
+            y0 += 1;
+        }
+        if (y0 <= v2.y) {
+            // active edges: v2-v1 and v2-v3
+            dx2 = v2.x-v3.x; dy2 = v2.y-v3.y; dz2 = v2.z-v3.z;
+            dr2 = c2.x-c3.x; dg2 = c2.y-c3.y; db2 = c2.z-c3.z;
+            inc2x = dx2/dy2; inc2z = dz2/dy2;
+            inc2r = dr2/dy2; inc2g = dg2/dy2; inc2b = db2/dy2;
+            xe2 = v3.x; ze2 = v3.z;
+            re2 = c3.x; ge2 = c3.y; be2 = c3.z;
+            // linha intermediária (y0)
+            {
+                int xini = 0, xf = 0;
+                float zini, zf;
+                float rini, gini, bini;
+                float rf, gf, bf;
+                if (floor(xe1) > floor(xe2)) {
+                    xini = floor(xe2); xf = floor(xe1);
+                    zini = ze2;        zf = ze1;
+                    rini = re2;        rf = re1;
+                    gini = ge2;        gf = ge1;
+                    bini = be2;        bf = be1;
+                } else {
+                    xini = floor(xe1); xf = floor(xe2);
+                    zini = ze1;        zf = ze2;
+                    rini = re1;        rf = re2;
+                    gini = ge1;        gf = ge2;
+                    bini = be1;        bf = be2;
+                }
+                int pxTotal = xf - xini;
+                float zstep = (float)(zf - zini)/(float)pxTotal;
+                float rstep = (float)(rf - rini)/(float)pxTotal;
+                float gstep = (float)(gf - gini)/(float)pxTotal;
+                float bstep = (float)(bf - bini)/(float)pxTotal;
+                for (; xini <= xf; xini++) {
+                    index = get_index(g_ColorBuffer, floor(xini), floor(y0));
+                    if (zini < g_ColorBuffer.pixels[index].z) {
+                        g_ColorBuffer.pixels[index].r = rini * 255;
+                        g_ColorBuffer.pixels[index].g = gini * 255;
+                        g_ColorBuffer.pixels[index].b = bini * 255;
+                        g_ColorBuffer.pixels[index].a = 255;
+                        g_ColorBuffer.pixels[index].z = zini;
+                    }
+                    zini += zstep;
+                    rini += rstep;
+                    gini += gstep;
+                    bini += bstep;
+                }
+            }
+            //
+            y0 += 1;
+            while (y0 <= v2.y) {
+                xe1 += inc1x; xe2 += inc2x;
+                if (y0 >= g_ScreenHeight || xe1 >= g_ScreenWidth || xe1 < 0 || xe2 >= g_ScreenWidth || xe2 < 0) {
+                    break;
+                }
+                ze1 += inc1z; ze2 += inc2z;
+                re1 += inc1r; ge1 += inc1g; be1 += inc1b;
+                re2 += inc2r; ge2 += inc2g; be2 += inc2b;
+                int xini = 0, xf = 0;
+                float zini, zf;
+                float rini, gini, bini;
+                float rf, gf, bf;
+                if (floor(xe1) > floor(xe2)) {
+                    xini = floor(xe2); xf = floor(xe1);
+                    zini = ze2;        zf = ze1;
+                    rini = re2;        rf = re1;
+                    gini = ge2;        gf = ge1;
+                    bini = be2;        bf = be1;
+                } else {
+                    xini = floor(xe1); xf = floor(xe2);
+                    zini = ze1;        zf = ze2;
+                    rini = re1;        rf = re2;
+                    gini = ge1;        gf = ge2;
+                    bini = be1;        bf = be2;
+                }
+                int pxTotal = xf - xini;
+                float zstep = (float)(zf - zini)/(float)pxTotal;
+                float rstep = (float)(rf - rini)/(float)pxTotal;
+                float gstep = (float)(gf - gini)/(float)pxTotal;
+                float bstep = (float)(bf - bini)/(float)pxTotal;
+                for (; xini <= xf; xini++) {
+                    index = get_index(g_ColorBuffer, floor(xini), floor(y0));
+                    if (zini < g_ColorBuffer.pixels[index].z) {
+                        g_ColorBuffer.pixels[index].r = rini * 255;
+                        g_ColorBuffer.pixels[index].g = gini * 255;
+                        g_ColorBuffer.pixels[index].b = bini * 255;
+                        g_ColorBuffer.pixels[index].a = 255;
+                        g_ColorBuffer.pixels[index].z = zini;
+                    }
+                    zini += zstep;
+                    rini += rstep;
+                    gini += gstep;
+                    bini += bstep;
+                }
+                y0 += 1;
+            }
+        } else if (y0 <= v3.y) {
+            // active edges: v3-v2 and v3-v1
+            dx1 = v3.x-v2.x; dy1 = v3.y-v2.y; dz1 = v3.z-v2.z;
+            dr1 = c3.x-c2.x; dg1 = c3.y-c2.y; db1 = c3.z-c2.z;
+            inc1x = dx1/dy1; inc1z = dz1/dy1;
+            inc1r = dr1/dy1; inc1g = dg1/dy1; inc1b = db1/dy1;
+            xe1 = v2.x; ze1 = v2.z;
+            re1 = c2.x; ge1 = c2.y; be1 = c2.z;
+            // linha intermediária (y0)
+            {
+                int xini = 0, xf = 0;
+                float zini, zf;
+                float rini, gini, bini;
+                float rf, gf, bf;
+                if (floor(xe1) > floor(xe2)) {
+                    xini = floor(xe2); xf = floor(xe1);
+                    zini = ze2;        zf = ze1;
+                    rini = re2;        rf = re1;
+                    gini = ge2;        gf = ge1;
+                    bini = be2;        bf = be1;
+                } else {
+                    xini = floor(xe1); xf = floor(xe2);
+                    zini = ze1;        zf = ze2;
+                    rini = re1;        rf = re2;
+                    gini = ge1;        gf = ge2;
+                    bini = be1;        bf = be2;
+                }
+                int pxTotal = xf - xini;
+                float zstep = (float)(zf - zini)/(float)pxTotal;
+                float rstep = (float)(rf - rini)/(float)pxTotal;
+                float gstep = (float)(gf - gini)/(float)pxTotal;
+                float bstep = (float)(bf - bini)/(float)pxTotal;
+                for (; xini <= xf; xini++) {
+                    index = get_index(g_ColorBuffer, floor(xini), floor(y0));
+                    if (zini < g_ColorBuffer.pixels[index].z) {
+                        g_ColorBuffer.pixels[index].r = rini * 255;
+                        g_ColorBuffer.pixels[index].g = gini * 255;
+                        g_ColorBuffer.pixels[index].b = bini * 255;
+                        g_ColorBuffer.pixels[index].a = 255;
+                        g_ColorBuffer.pixels[index].z = zini;
+                    }
+                    zini += zstep;
+                    rini += rstep;
+                    gini += gstep;
+                    bini += bstep;
+                }
+            }
+            //
+            y0 += 1;
+            while (y0 <= v3.y) {
+                xe1 += inc1x; xe2 += inc2x;
+                if (y0 >= g_ScreenHeight || xe1 >= g_ScreenWidth || xe1 < 0 || xe2 >= g_ScreenWidth || xe2 < 0) {
+                    break;
+                }
+                ze1 += inc1z; ze2 += inc2z;
+                re1 += inc1r; ge1 += inc1g; be1 += inc1b;
+                re2 += inc2r; ge2 += inc2g; be2 += inc2b;
+                int xini = 0, xf = 0;
+                float zini, zf;
+                float rini, gini, bini;
+                float rf, gf, bf;
+                if (floor(xe1) > floor(xe2)) {
+                    xini = floor(xe2); xf = floor(xe1);
+                    zini = ze2;        zf = ze1;
+                    rini = re2;        rf = re1;
+                    gini = ge2;        gf = ge1;
+                    bini = be2;        bf = be1;
+                } else {
+                    xini = floor(xe1); xf = floor(xe2);
+                    zini = ze1;        zf = ze2;
+                    rini = re1;        rf = re2;
+                    gini = ge1;        gf = ge2;
+                    bini = be1;        bf = be2;
+                }
+                int pxTotal = xf - xini;
+                float zstep = (float)(zf - zini)/(float)pxTotal;
+                float rstep = (float)(rf - rini)/(float)pxTotal;
+                float gstep = (float)(gf - gini)/(float)pxTotal;
+                float bstep = (float)(bf - bini)/(float)pxTotal;
+                for (; xini <= xf; xini++) {
+                    index = get_index(g_ColorBuffer, floor(xini), floor(y0));
+                    if (zini < g_ColorBuffer.pixels[index].z) {
+                        g_ColorBuffer.pixels[index].r = rini * 255;
+                        g_ColorBuffer.pixels[index].g = gini * 255;
+                        g_ColorBuffer.pixels[index].b = bini * 255;
+                        g_ColorBuffer.pixels[index].a = 255;
+                        g_ColorBuffer.pixels[index].z = zini;
+                    }
+                    zini += zstep;
+                    rini += rstep;
+                    gini += gstep;
+                    bini += bstep;
+                }
+                y0 += 1;
+            }
+        }
+      }
+      break;
+      case 2: {
+        float dx1 = v1.x-v2.x; float dy1 = v1.y-v2.y; float dz1 = v1.z-v2.z;
+        float dx2 = v3.x-v2.x; float dy2 = v3.y-v2.y; float dz2 = v3.z-v2.z;
+        float dr1 = c1.x-c2.x; float dg1 = c1.y-c2.y; float db1 = c1.z-c2.z;
+        float dr2 = c3.x-c2.x; float dg2 = c3.y-c2.y; float db2 = c3.z-c2.z;
+        float x0 = v2.x;       float y0 = v2.y;       float z0 = v2.z;
+        float r0 = c2.x;       float g0 = c2.y;       float b0 = c2.z;
+        float inc1x = dx1/dy1; float inc1z = dz1/dy1;
+        float inc2x = dx2/dy2; float inc2z = dz2/dy2;
+        float inc1r = dr1/dy1; float inc1g = dg1/dy1; float inc1b = db1/dy1;
+        float inc2r = dr2/dy2; float inc2g = dg2/dy2; float inc2b = db2/dy2;
+        // start with v1-v2 and v3-v2 as active edges
+        float xe1 = x0; float xe2 = x0;
+        float ze1 = z0; float ze2 = z0;
+        float re1 = r0; float ge1 = g0; float be1 = b0;
+        float re2 = r0; float ge2 = g0; float be2 = b0;
+        y0 += 1;
+        while (y0 <= v1.y && y0 <= v3.y) {
+            xe1 += inc1x; xe2 += inc2x;
+            if (y0 >= g_ScreenHeight || xe1 >= g_ScreenWidth || xe1 < 0 || xe2 >= g_ScreenWidth || xe2 < 0) {
+                break;
+            }
+            ze1 += inc1z; ze2 += inc2z;
+            re1 += inc1r; ge1 += inc1g; be1 += inc1b;
+            re2 += inc2r; ge2 += inc2g; be2 += inc2b;
+            int xini = 0, xf = 0;
+            float zini, zf;
+            float rini, gini, bini;
+            float rf, gf, bf;
+            if (floor(xe1) > floor(xe2)) {
+                xini = floor(xe2); xf = floor(xe1);
+                zini = ze2;        zf = ze1;
+                rini = re2;        rf = re1;
+                gini = ge2;        gf = ge1;
+                bini = be2;        bf = be1;
+            } else {
+                xini = floor(xe1); xf = floor(xe2);
+                zini = ze1;        zf = ze2;
+                rini = re1;        rf = re2;
+                gini = ge1;        gf = ge2;
+                bini = be1;        bf = be2;
+            }
+            int pxTotal = xf - xini;
+            float zstep = (float)(zf - zini)/(float)pxTotal;
+            float rstep = (float)(rf - rini)/(float)pxTotal;
+            float gstep = (float)(gf - gini)/(float)pxTotal;
+            float bstep = (float)(bf - bini)/(float)pxTotal;
+            for (; xini <= xf; xini++) {
+                index = get_index(g_ColorBuffer, floor(xini), floor(y0));
+                if (zini < g_ColorBuffer.pixels[index].z) {
+                    g_ColorBuffer.pixels[index].r = rini * 255;
+                    g_ColorBuffer.pixels[index].g = gini * 255;
+                    g_ColorBuffer.pixels[index].b = bini * 255;
+                    g_ColorBuffer.pixels[index].a = 255;
+                    g_ColorBuffer.pixels[index].z = zini;
+                }
+                zini += zstep;
+                rini += rstep;
+                gini += gstep;
+                bini += bstep;
+            }
+            y0 += 1;
+        }
+        if (y0 <= v1.y) {
+            // active edges: v1-v2 and v1-v3
+            dx2 = v1.x-v3.x; dy2 = v1.y-v3.y; dz2 = v1.z-v3.z;
+            dr2 = c1.x-c3.x; dg2 = c1.y-c3.y; db2 = c1.z-c3.z;
+            inc2x = dx2/dy2; inc2z = dz2/dy2;
+            inc2r = dr2/dy2; inc2g = dg2/dy2; inc2b = db2/dy2;
+            xe2 = v3.x; ze2 = v3.z;
+            re2 = c3.x; ge2 = c3.y; be2 = c3.z;
+            // linha intermediária (y0)
+            {
+                int xini = 0, xf = 0;
+                float zini, zf;
+                float rini, gini, bini;
+                float rf, gf, bf;
+                if (floor(xe1) > floor(xe2)) {
+                    xini = floor(xe2); xf = floor(xe1);
+                    zini = ze2;        zf = ze1;
+                    rini = re2;        rf = re1;
+                    gini = ge2;        gf = ge1;
+                    bini = be2;        bf = be1;
+                } else {
+                    xini = floor(xe1); xf = floor(xe2);
+                    zini = ze1;        zf = ze2;
+                    rini = re1;        rf = re2;
+                    gini = ge1;        gf = ge2;
+                    bini = be1;        bf = be2;
+                }
+                int pxTotal = xf - xini;
+                float zstep = (float)(zf - zini)/(float)pxTotal;
+                float rstep = (float)(rf - rini)/(float)pxTotal;
+                float gstep = (float)(gf - gini)/(float)pxTotal;
+                float bstep = (float)(bf - bini)/(float)pxTotal;
+                for (; xini <= xf; xini++) {
+                    index = get_index(g_ColorBuffer, floor(xini), floor(y0));
+                    if (zini < g_ColorBuffer.pixels[index].z) {
+                        g_ColorBuffer.pixels[index].r = rini * 255;
+                        g_ColorBuffer.pixels[index].g = gini * 255;
+                        g_ColorBuffer.pixels[index].b = bini * 255;
+                        g_ColorBuffer.pixels[index].a = 255;
+                        g_ColorBuffer.pixels[index].z = zini;
+                    }
+                    zini += zstep;
+                    rini += rstep;
+                    gini += gstep;
+                    bini += bstep;
+                }
+            }
+            //
+            y0 += 1;
+            while (y0 <= v1.y) {
+                xe1 += inc1x; xe2 += inc2x;
+                if (y0 >= g_ScreenHeight || xe1 >= g_ScreenWidth || xe1 < 0 || xe2 >= g_ScreenWidth || xe2 < 0) {
+                    break;
+                }
+                ze1 += inc1z; ze2 += inc2z;
+                re1 += inc1r; ge1 += inc1g; be1 += inc1b;
+                re2 += inc2r; ge2 += inc2g; be2 += inc2b;
+                int xini = 0, xf = 0;
+                float zini, zf;
+                float rini, gini, bini;
+                float rf, gf, bf;
+                if (floor(xe1) > floor(xe2)) {
+                    xini = floor(xe2); xf = floor(xe1);
+                    zini = ze2;        zf = ze1;
+                    rini = re2;        rf = re1;
+                    gini = ge2;        gf = ge1;
+                    bini = be2;        bf = be1;
+                } else {
+                    xini = floor(xe1); xf = floor(xe2);
+                    zini = ze1;        zf = ze2;
+                    rini = re1;        rf = re2;
+                    gini = ge1;        gf = ge2;
+                    bini = be1;        bf = be2;
+                }
+                int pxTotal = xf - xini;
+                float zstep = (float)(zf - zini)/(float)pxTotal;
+                float rstep = (float)(rf - rini)/(float)pxTotal;
+                float gstep = (float)(gf - gini)/(float)pxTotal;
+                float bstep = (float)(bf - bini)/(float)pxTotal;
+                for (; xini <= xf; xini++) {
+                    index = get_index(g_ColorBuffer, floor(xini), floor(y0));
+                    if (zini < g_ColorBuffer.pixels[index].z) {
+                        g_ColorBuffer.pixels[index].r = rini * 255;
+                        g_ColorBuffer.pixels[index].g = gini * 255;
+                        g_ColorBuffer.pixels[index].b = bini * 255;
+                        g_ColorBuffer.pixels[index].a = 255;
+                        g_ColorBuffer.pixels[index].z = zini;
+                    }
+                    zini += zstep;
+                    rini += rstep;
+                    gini += gstep;
+                    bini += bstep;
+                }
+                y0 += 1;
+            }
+        } 
+        else if (y0 <= v3.y) {
+            // active edges: v3-v1 and v3-v2
+            dx1 = v3.x-v1.x; dy1 = v3.y-v1.y; dz1 = v3.z-v1.z;
+            dr1 = c3.x-c1.x; dg1 = c3.y-c1.y; db1 = c3.z-c1.z;
+            inc1x = dx1/dy1; inc1z = dz1/dy1;
+            inc1r = dr1/dy1; inc1g = dg1/dy1; inc1b = db1/dy1;
+            xe1 = v1.x; ze1 = v1.z;
+            re1 = c1.x; ge1 = c1.y; be1 = c1.z;
+            // linha intermediária (y0)
+            {
+                int xini = 0, xf = 0;
+                float zini, zf;
+                float rini, gini, bini;
+                float rf, gf, bf;
+                if (floor(xe1) > floor(xe2)) {
+                    xini = floor(xe2); xf = floor(xe1);
+                    zini = ze2;        zf = ze1;
+                    rini = re2;        rf = re1;
+                    gini = ge2;        gf = ge1;
+                    bini = be2;        bf = be1;
+                } else {
+                    xini = floor(xe1); xf = floor(xe2);
+                    zini = ze1;        zf = ze2;
+                    rini = re1;        rf = re2;
+                    gini = ge1;        gf = ge2;
+                    bini = be1;        bf = be2;
+                }
+                int pxTotal = xf - xini;
+                float zstep = (float)(zf - zini)/(float)pxTotal;
+                float rstep = (float)(rf - rini)/(float)pxTotal;
+                float gstep = (float)(gf - gini)/(float)pxTotal;
+                float bstep = (float)(bf - bini)/(float)pxTotal;
+                for (; xini <= xf; xini++) {
+                    index = get_index(g_ColorBuffer, floor(xini), floor(y0));
+                    if (zini < g_ColorBuffer.pixels[index].z) {
+                        g_ColorBuffer.pixels[index].r = rini * 255;
+                        g_ColorBuffer.pixels[index].g = gini * 255;
+                        g_ColorBuffer.pixels[index].b = bini * 255;
+                        g_ColorBuffer.pixels[index].a = 255;
+                        g_ColorBuffer.pixels[index].z = zini;
+                    }
+                    zini += zstep;
+                    rini += rstep;
+                    gini += gstep;
+                    bini += bstep;
+                }
+            }
+            //
+            y0 += 1;
+            while (y0 <= v3.y) {
+                xe1 += inc1x; xe2 += inc2x;
+                if (y0 >= g_ScreenHeight || xe1 >= g_ScreenWidth || xe1 < 0 || xe2 >= g_ScreenWidth || xe2 < 0) {
+                    break;
+                }
+                ze1 += inc1z; ze2 += inc2z;
+                re1 += inc1r; ge1 += inc1g; be1 += inc1b;
+                re2 += inc2r; ge2 += inc2g; be2 += inc2b;
+                int xini = 0, xf = 0;
+                float zini, zf;
+                float rini, gini, bini;
+                float rf, gf, bf;
+                if (floor(xe1) > floor(xe2)) {
+                    xini = floor(xe2); xf = floor(xe1);
+                    zini = ze2;        zf = ze1;
+                    rini = re2;        rf = re1;
+                    gini = ge2;        gf = ge1;
+                    bini = be2;        bf = be1;
+                } else {
+                    xini = floor(xe1); xf = floor(xe2);
+                    zini = ze1;        zf = ze2;
+                    rini = re1;        rf = re2;
+                    gini = ge1;        gf = ge2;
+                    bini = be1;        bf = be2;
+                }
+                int pxTotal = xf - xini;
+                float zstep = (float)(zf - zini)/(float)pxTotal;
+                float rstep = (float)(rf - rini)/(float)pxTotal;
+                float gstep = (float)(gf - gini)/(float)pxTotal;
+                float bstep = (float)(bf - bini)/(float)pxTotal;
+                for (; xini <= xf; xini++) {
+                    index = get_index(g_ColorBuffer, floor(xini), floor(y0));
+                    if (zini < g_ColorBuffer.pixels[index].z) {
+                        g_ColorBuffer.pixels[index].r = rini * 255;
+                        g_ColorBuffer.pixels[index].g = gini * 255;
+                        g_ColorBuffer.pixels[index].b = bini * 255;
+                        g_ColorBuffer.pixels[index].a = 255;
+                        g_ColorBuffer.pixels[index].z = zini;
+                    }
+                    zini += zstep;
+                    rini += rstep;
+                    gini += gstep;
+                    bini += bstep;
+                }
+                y0 += 1;
+            }
+        }
+      }
+      break;
+      case 3: {
+        float dx1 = v1.x-v3.x; float dy1 = v1.y-v3.y; float dz1 = v1.z-v3.z;
+        float dx2 = v2.x-v3.x; float dy2 = v2.y-v3.y; float dz2 = v2.z-v3.z;
+        float dr1 = c1.x-c3.x; float dg1 = c1.y-c3.y; float db1 = c1.z-c3.z;
+        float dr2 = c2.x-c3.x; float dg2 = c2.y-c3.y; float db2 = c2.z-c3.z;
+        float x0 = v3.x;       float y0 = v3.y;       float z0 = v3.z;
+        float r0 = c3.x;       float g0 = c3.y;       float b0 = c3.z;
+        float inc1x = dx1/dy1; float inc1z = dz1/dy1;
+        float inc2x = dx2/dy2; float inc2z = dz2/dy2;
+        float inc1r = dr1/dy1; float inc1g = dg1/dy1; float inc1b = db1/dy1;
+        float inc2r = dr2/dy2; float inc2g = dg2/dy2; float inc2b = db2/dy2;
+        // start with v1-v3 and v2-v3 as active edges
+        float xe1 = x0; float xe2 = x0;
+        float ze1 = z0; float ze2 = z0;
+        float re1 = r0; float ge1 = g0; float be1 = b0;
+        float re2 = r0; float ge2 = g0; float be2 = b0;
+        y0 += 1;
+        while (y0 <= v1.y && y0 <= v2.y) {
+            xe1 += inc1x; xe2 += inc2x;
+            if (y0 >= g_ScreenHeight || xe1 >= g_ScreenWidth || xe1 < 0 || xe2 >= g_ScreenWidth || xe2 < 0) {
+                break;
+            }
+            ze1 += inc1z; ze2 += inc2z;
+            re1 += inc1r; ge1 += inc1g; be1 += inc1b;
+            re2 += inc2r; ge2 += inc2g; be2 += inc2b;
+            int xini = 0, xf = 0;
+            float zini, zf;
+            float rini, gini, bini;
+            float rf, gf, bf;
+            if (floor(xe1) > floor(xe2)) {
+                xini = floor(xe2); xf = floor(xe1);
+                zini = ze2;        zf = ze1;
+                rini = re2;        rf = re1;
+                gini = ge2;        gf = ge1;
+                bini = be2;        bf = be1;
+            } else {
+                xini = floor(xe1); xf = floor(xe2);
+                zini = ze1;        zf = ze2;
+                rini = re1;        rf = re2;
+                gini = ge1;        gf = ge2;
+                bini = be1;        bf = be2;
+            }
+            int pxTotal = xf - xini;
+            float zstep = (float)(zf - zini)/(float)pxTotal;
+            float rstep = (float)(rf - rini)/(float)pxTotal;
+            float gstep = (float)(gf - gini)/(float)pxTotal;
+            float bstep = (float)(bf - bini)/(float)pxTotal;
+            for (; xini <= xf; xini++) {
+                index = get_index(g_ColorBuffer, floor(xini), floor(y0));
+                if (zini < g_ColorBuffer.pixels[index].z) {
+                    g_ColorBuffer.pixels[index].r = rini * 255;
+                    g_ColorBuffer.pixels[index].g = gini * 255;
+                    g_ColorBuffer.pixels[index].b = bini * 255;
+                    g_ColorBuffer.pixels[index].a = 255;
+                    g_ColorBuffer.pixels[index].z = zini;
+                }
+                zini += zstep;
+                rini += rstep;
+                gini += gstep;
+                bini += bstep;
+            }
+            y0 += 1;
+        }
+        if (y0 <= v1.y) {
+            // active edges: v1-v3 and v1-v2
+            dx2 = v1.x-v2.x; dy2 = v1.y-v2.y; dz2 = v1.z-v2.z;
+            dr2 = c1.x-c2.x; dg2 = c1.y-c2.y; db2 = c1.z-c2.z;
+            inc2x = dx2/dy2; inc2z = dz2/dy2;
+            inc2r = dr2/dy2; inc2g = dg2/dy2; inc2b = db2/dy2;
+            xe2 = v2.x; ze2 = v2.z;
+            re2 = c2.x; ge2 = c2.y; be2 = c2.z;
+            // linha intermediária (y0)
+            {
+                int xini = 0, xf = 0;
+                float zini, zf;
+                float rini, gini, bini;
+                float rf, gf, bf;
+                if (floor(xe1) > floor(xe2)) {
+                    xini = floor(xe2); xf = floor(xe1);
+                    zini = ze2;        zf = ze1;
+                    rini = re2;        rf = re1;
+                    gini = ge2;        gf = ge1;
+                    bini = be2;        bf = be1;
+                } else {
+                    xini = floor(xe1); xf = floor(xe2);
+                    zini = ze1;        zf = ze2;
+                    rini = re1;        rf = re2;
+                    gini = ge1;        gf = ge2;
+                    bini = be1;        bf = be2;
+                }
+                int pxTotal = xf - xini;
+                float zstep = (float)(zf - zini)/(float)pxTotal;
+                float rstep = (float)(rf - rini)/(float)pxTotal;
+                float gstep = (float)(gf - gini)/(float)pxTotal;
+                float bstep = (float)(bf - bini)/(float)pxTotal;
+                for (; xini <= xf; xini++) {
+                    index = get_index(g_ColorBuffer, floor(xini), floor(y0));
+                    if (zini < g_ColorBuffer.pixels[index].z) {
+                        g_ColorBuffer.pixels[index].r = rini * 255;
+                        g_ColorBuffer.pixels[index].g = gini * 255;
+                        g_ColorBuffer.pixels[index].b = bini * 255;
+                        g_ColorBuffer.pixels[index].a = 255;
+                        g_ColorBuffer.pixels[index].z = zini;
+                    }
+                    zini += zstep;
+                    rini += rstep;
+                    gini += gstep;
+                    bini += bstep;
+                }
+            }
+            //
+            y0 += 1;
+            while (y0 <= v1.y) {
+                xe1 += inc1x; xe2 += inc2x;
+                if (y0 >= g_ScreenHeight || xe1 >= g_ScreenWidth || xe1 < 0 || xe2 >= g_ScreenWidth || xe2 < 0) {
+                    break;
+                }
+                ze1 += inc1z; ze2 += inc2z;
+                re1 += inc1r; ge1 += inc1g; be1 += inc1b;
+                re2 += inc2r; ge2 += inc2g; be2 += inc2b;
+                int xini = 0, xf = 0;
+                float zini, zf;
+                float rini, gini, bini;
+                float rf, gf, bf;
+                if (floor(xe1) > floor(xe2)) {
+                    xini = floor(xe2); xf = floor(xe1);
+                    zini = ze2;        zf = ze1;
+                    rini = re2;        rf = re1;
+                    gini = ge2;        gf = ge1;
+                    bini = be2;        bf = be1;
+                } else {
+                    xini = floor(xe1); xf = floor(xe2);
+                    zini = ze1;        zf = ze2;
+                    rini = re1;        rf = re2;
+                    gini = ge1;        gf = ge2;
+                    bini = be1;        bf = be2;
+                }
+                int pxTotal = xf - xini;
+                float zstep = (float)(zf - zini)/(float)pxTotal;
+                float rstep = (float)(rf - rini)/(float)pxTotal;
+                float gstep = (float)(gf - gini)/(float)pxTotal;
+                float bstep = (float)(bf - bini)/(float)pxTotal;
+                for (; xini <= xf; xini++) {
+                    index = get_index(g_ColorBuffer, floor(xini), floor(y0));
+                    if (zini < g_ColorBuffer.pixels[index].z) {
+                        g_ColorBuffer.pixels[index].r = rini * 255;
+                        g_ColorBuffer.pixels[index].g = gini * 255;
+                        g_ColorBuffer.pixels[index].b = bini * 255;
+                        g_ColorBuffer.pixels[index].a = 255;
+                        g_ColorBuffer.pixels[index].z = zini;
+                    }
+                    zini += zstep;
+                    rini += rstep;
+                    gini += gstep;
+                    bini += bstep;
+                }
+                y0 += 1;
+            }
+        } else if (y0 <= v2.y) {
+            // active edges: v2-v1 and v2-v3
+            dx1 = v2.x-v1.x; dy1 = v2.y-v1.y; dz1 = v2.z-v1.z;
+            dr1 = c2.x-c1.x; dg1 = c2.y-c1.y; db1 = c2.z-c1.z;
+            inc1x = dx1/dy1; inc1z = dz1/dy1;
+            inc1r = dr1/dy1; inc1g = dg1/dy1; inc1b = db1/dy1;
+            xe1 = v1.x; ze1 = v1.z;
+            re1 = c1.x; ge1 = c1.y; be1 = c1.z;
+            // linha intermediária (y0)
+            {
+                int xini = 0, xf = 0;
+                float zini, zf;
+                float rini, gini, bini;
+                float rf, gf, bf;
+                if (floor(xe1) > floor(xe2)) {
+                    xini = floor(xe2); xf = floor(xe1);
+                    zini = ze2;        zf = ze1;
+                    rini = re2;        rf = re1;
+                    gini = ge2;        gf = ge1;
+                    bini = be2;        bf = be1;
+                } else {
+                    xini = floor(xe1); xf = floor(xe2);
+                    zini = ze1;        zf = ze2;
+                    rini = re1;        rf = re2;
+                    gini = ge1;        gf = ge2;
+                    bini = be1;        bf = be2;
+                }
+                int pxTotal = xf - xini;
+                float zstep = (float)(zf - zini)/(float)pxTotal;
+                float rstep = (float)(rf - rini)/(float)pxTotal;
+                float gstep = (float)(gf - gini)/(float)pxTotal;
+                float bstep = (float)(bf - bini)/(float)pxTotal;
+                for (; xini <= xf; xini++) {
+                    index = get_index(g_ColorBuffer, floor(xini), floor(y0));
+                    if (zini < g_ColorBuffer.pixels[index].z) {
+                        g_ColorBuffer.pixels[index].r = rini * 255;
+                        g_ColorBuffer.pixels[index].g = gini * 255;
+                        g_ColorBuffer.pixels[index].b = bini * 255;
+                        g_ColorBuffer.pixels[index].a = 255;
+                        g_ColorBuffer.pixels[index].z = zini;
+                    }
+                    zini += zstep;
+                    rini += rstep;
+                    gini += gstep;
+                    bini += bstep;
+                }
+            }
+            //
+            y0 += 1;
+            while (y0 <= v2.y) {
+                xe1 += inc1x; xe2 += inc2x;
+                if (y0 >= g_ScreenHeight || xe1 >= g_ScreenWidth || xe1 < 0 || xe2 >= g_ScreenWidth || xe2 < 0) {
+                    break;
+                }
+                ze1 += inc1z; ze2 += inc2z;
+                re1 += inc1r; ge1 += inc1g; be1 += inc1b;
+                re2 += inc2r; ge2 += inc2g; be2 += inc2b;
+                int xini = 0, xf = 0;
+                float zini, zf;
+                float rini, gini, bini;
+                float rf, gf, bf;
+                if (floor(xe1) > floor(xe2)) {
+                    xini = floor(xe2); xf = floor(xe1);
+                    zini = ze2;        zf = ze1;
+                    rini = re2;        rf = re1;
+                    gini = ge2;        gf = ge1;
+                    bini = be2;        bf = be1;
+                } else {
+                    xini = floor(xe1); xf = floor(xe2);
+                    zini = ze1;        zf = ze2;
+                    rini = re1;        rf = re2;
+                    gini = ge1;        gf = ge2;
+                    bini = be1;        bf = be2;
+                }
+                int pxTotal = xf - xini;
+                float zstep = (float)(zf - zini)/(float)pxTotal;
+                float rstep = (float)(rf - rini)/(float)pxTotal;
+                float gstep = (float)(gf - gini)/(float)pxTotal;
+                float bstep = (float)(bf - bini)/(float)pxTotal;
+                for (; xini <= xf; xini++) {
+                    index = get_index(g_ColorBuffer, floor(xini), floor(y0));
+                    if (zini < g_ColorBuffer.pixels[index].z) {
+                        g_ColorBuffer.pixels[index].r = rini * 255;
+                        g_ColorBuffer.pixels[index].g = gini * 255;
+                        g_ColorBuffer.pixels[index].b = bini * 255;
+                        g_ColorBuffer.pixels[index].a = 255;
+                        g_ColorBuffer.pixels[index].z = zini;
+                    }
+                    zini += zstep;
+                    rini += rstep;
+                    gini += gstep;
+                    bini += bstep;
+                }
+                y0 += 1;
+            }
+        }
+      }
+      break;
+    }
+}
+
 GLuint BuildTriangles(ModelObject model)
 {
     glm::vec3 min_coord = glm::vec3(FLT_MAX, FLT_MAX, FLT_MAX);
@@ -521,7 +1424,6 @@ GLuint BuildTriangles(ModelObject model)
     int num_vertices = model.num_triangles * 3;
     std::vector<float> normal_coefficients;
     std::vector<float> model_coefficients;
-    GLfloat close2gl_coefficients[num_vertices * 4];
     for (int i = 0; i < model.num_triangles; i++) {
         Triangle triangle = model.triangles[i];
         // v0
@@ -576,6 +1478,22 @@ GLuint BuildTriangles(ModelObject model)
         max_coord.z = (triangle.v2.pos.z > max_coord.z) ? triangle.v2.pos.z : max_coord.z;    
     }
     if (g_UseClose2GL) {
+        free(g_ColorBuffer.pixels);
+        g_ColorBuffer.width  = g_ScreenWidth;
+        g_ColorBuffer.height = g_ScreenHeight;
+        g_ColorBuffer.pixels = (ScreenPixel*)calloc(g_ScreenHeight * g_ScreenWidth, sizeof(ScreenPixel));
+        for (int i = 0; i < g_ScreenWidth; i++) {
+            for (int j = 0; j < g_ScreenHeight; j++) {
+                int index = get_index(g_ColorBuffer, i, j);
+                g_ColorBuffer.pixels[index].r = 255;
+                g_ColorBuffer.pixels[index].g = 255;
+                g_ColorBuffer.pixels[index].b = 255;
+                g_ColorBuffer.pixels[index].a = 255;
+                g_ColorBuffer.pixels[index].z = FLT_MAX;
+            }
+        }
+        
+        GLfloat close2gl_coefficients[num_vertices * 4];
         int clipped_vertices = 0;
         int j = 0;
         for (int i = 0; i < num_vertices*4; i+=12) {
@@ -592,7 +1510,24 @@ GLuint BuildTriangles(ModelObject model)
             glm::vec4 coords3 = glm::vec4(model_coefficients[i+8 ],
                                           model_coefficients[i+9 ],
                                           model_coefficients[i+10],
-                                          model_coefficients[i+11]);                   
+                                          model_coefficients[i+11]);  
+            glm::vec4 coords1world = g_ModelMatrix * coords1;
+            glm::vec4 coords2world = g_ModelMatrix * coords2;
+            glm::vec4 coords3world = g_ModelMatrix * coords3;
+            
+            glm::vec4 normalCoords1 = glm::vec4(normal_coefficients[i   ],
+                                                normal_coefficients[i+1 ],
+                                                normal_coefficients[i+2 ],
+                                                normal_coefficients[i+3 ]);
+            glm::vec4 normalCoords2 = glm::vec4(normal_coefficients[i+4 ],
+                                                normal_coefficients[i+5 ],
+                                                normal_coefficients[i+6 ],
+                                                normal_coefficients[i+7 ]);
+            glm::vec4 normalCoords3 = glm::vec4(normal_coefficients[i+8 ],
+                                                normal_coefficients[i+9 ],
+                                                normal_coefficients[i+10],
+                                                normal_coefficients[i+11]);  
+            
             coords1 = g_ProjectionMatrix * g_ViewMatrix * g_ModelMatrix * coords1;
             coords2 = g_ProjectionMatrix * g_ViewMatrix * g_ModelMatrix * coords2;
             coords3 = g_ProjectionMatrix * g_ViewMatrix * g_ModelMatrix * coords3;
@@ -634,52 +1569,113 @@ GLuint BuildTriangles(ModelObject model)
                     sum += (coords2sc.x*coords3sc.y - coords3sc.x*coords2sc.y);
                     sum += (coords3sc.x*coords1sc.y - coords1sc.x*coords3sc.y);
                     area = 0.5f * sum;
+
+                    // phong illumination model
+                    glm::vec4 origin = glm::vec4(0.f,0.f,0.f,1.f);
+                    glm::vec4 cameraPosition = glm::inverse(g_ViewMatrix) * origin;
+                    glm::vec3 Kd = glm::vec3(1.f,1.f,1.f);
+                    glm::vec3 Ks = glm::vec3(1.f,1.f,1.f);
+                    glm::vec3 Ka = glm::vec3(.2f,.2f,.2f);
+                    glm::vec3 Ia = glm::vec3(.2f,.2f,.2f);
+                    float q = 32.f;
+                    glm::vec4 lightDirection = glm::normalize(glm::vec4(1.f,1.f,0.f,0.f));
+                    glm::vec3 ambientTerm = Ka * Ia;
+                    glm::vec3 colorVector = glm::vec3(g_Red, g_Blue, g_Green);
                     
+                    normalCoords1 = glm::normalize(normalCoords1);
+                    normalCoords2 = glm::normalize(normalCoords2);
+                    normalCoords3 = glm::normalize(normalCoords3);
+                    
+                    glm::vec4 viewDirectionV1 = glm::normalize(cameraPosition - coords1world);
+                    glm::vec4 viewDirectionV2 = glm::normalize(cameraPosition - coords2world);
+                    glm::vec4 viewDirectionV3 = glm::normalize(cameraPosition - coords3world);
+                    
+                    glm::vec4 reflectionDirectionV1 = -lightDirection + 2.f*normalCoords1*glm::dot(normalCoords1,lightDirection);
+                    glm::vec4 reflectionDirectionV2 = -lightDirection + 2.f*normalCoords2*glm::dot(normalCoords2,lightDirection);
+                    glm::vec4 reflectionDirectionV3 = -lightDirection + 2.f*normalCoords3*glm::dot(normalCoords3,lightDirection);
+                    
+                    glm::vec3 lambertDiffuseTermV1 = Kd*glm::max(0.f,glm::dot(normalCoords1,lightDirection));
+                    glm::vec3 lambertDiffuseTermV2 = Kd*glm::max(0.f,glm::dot(normalCoords2,lightDirection));
+                    glm::vec3 lambertDiffuseTermV3 = Kd*glm::max(0.f,glm::dot(normalCoords3,lightDirection));
+
+                    glm::vec3 phongSpecularTermV1 = Ks*glm::pow(glm::max(0.f,dot(reflectionDirectionV1,viewDirectionV1)),q);
+                    glm::vec3 phongSpecularTermV2 = Ks*glm::pow(glm::max(0.f,dot(reflectionDirectionV2,viewDirectionV2)),q);
+                    glm::vec3 phongSpecularTermV3 = Ks*glm::pow(glm::max(0.f,dot(reflectionDirectionV3,viewDirectionV3)),q);
+                    
+                    glm::vec3 outputColorV1 = colorVector;
+                    glm::vec3 outputColorV2 = colorVector;
+                    glm::vec3 outputColorV3 = colorVector;
+                    if (g_ToggleGouraud && g_TogglePhong) {
+                        outputColorV1 = (ambientTerm+lambertDiffuseTermV1+phongSpecularTermV1)*colorVector;
+                        outputColorV1 = glm::pow(outputColorV1, glm::vec3(1.f,1.f,1.f)/2.2f);
+                        outputColorV2 = (ambientTerm+lambertDiffuseTermV2+phongSpecularTermV2)*colorVector;
+                        outputColorV2 = glm::pow(outputColorV2, glm::vec3(1.f,1.f,1.f)/2.2f);
+                        outputColorV3 = (ambientTerm+lambertDiffuseTermV3+phongSpecularTermV3)*colorVector;
+                        outputColorV3 = glm::pow(outputColorV3, glm::vec3(1.f,1.f,1.f)/2.2f);
+                    } else if (g_ToggleGouraud) {
+                        outputColorV1 = (ambientTerm+lambertDiffuseTermV1)*colorVector;
+                        outputColorV1 = glm::pow(outputColorV1, glm::vec3(1.f,1.f,1.f)/2.2f);
+                        outputColorV2 = (ambientTerm+lambertDiffuseTermV2)*colorVector;
+                        outputColorV2 = glm::pow(outputColorV2, glm::vec3(1.f,1.f,1.f)/2.2f);
+                        outputColorV3 = (ambientTerm+lambertDiffuseTermV3)*colorVector;
+                        outputColorV3 = glm::pow(outputColorV3, glm::vec3(1.f,1.f,1.f)/2.2f);
+                    }
+
+
                     if (g_ToggleCW) { // clockwise
                         if (area < 0) {
                             // cull
                             clipped_vertices += 3;
                         } else {
-                            close2gl_coefficients[j   ] = coords1.x;
-                            close2gl_coefficients[j+1 ] = coords1.y;
-                            close2gl_coefficients[j+2 ] = coords1.z;
-                            close2gl_coefficients[j+3 ] = coords1.w;
-                            close2gl_coefficients[j+4 ] = coords2.x;
-                            close2gl_coefficients[j+5 ] = coords2.y;
-                            close2gl_coefficients[j+6 ] = coords2.z;
-                            close2gl_coefficients[j+7 ] = coords2.w;
-                            close2gl_coefficients[j+8 ] = coords3.x;
-                            close2gl_coefficients[j+9 ] = coords3.y;
-                            close2gl_coefficients[j+10] = coords3.z;
-                            close2gl_coefficients[j+11] = coords3.w;
-                            j+=12;
+                            DrawTriangle(coords1sc, coords2sc, coords3sc, outputColorV1, outputColorV2, outputColorV3);
                         }
                     } else { // counterclockwise
                         if (area > 0) {
                             // cull
                             clipped_vertices += 3;
                         } else {
-                            close2gl_coefficients[j   ] = coords1.x;
-                            close2gl_coefficients[j+1 ] = coords1.y;
-                            close2gl_coefficients[j+2 ] = coords1.z;
-                            close2gl_coefficients[j+3 ] = coords1.w;
-                            close2gl_coefficients[j+4 ] = coords2.x;
-                            close2gl_coefficients[j+5 ] = coords2.y;
-                            close2gl_coefficients[j+6 ] = coords2.z;
-                            close2gl_coefficients[j+7 ] = coords2.w;
-                            close2gl_coefficients[j+8 ] = coords3.x;
-                            close2gl_coefficients[j+9 ] = coords3.y;
-                            close2gl_coefficients[j+10] = coords3.z;
-                            close2gl_coefficients[j+11] = coords3.w;
-                            j+=12;
+                            DrawTriangle(coords1sc, coords2sc, coords3sc, outputColorV1, outputColorV2, outputColorV3);
                         }
                     }
                 }
             }
         }
-   //     printf("Clipped/culled vertices: %d\n", clipped_vertices);
-        num_vertices -= clipped_vertices;
         
+        
+        std::vector<unsigned char> textureData;
+        for (int i = 0; i < g_ScreenHeight; i++) {
+            for (int j = 0; j < g_ScreenWidth; j++) {
+                textureData.push_back(g_ColorBuffer.pixels[get_index(g_ColorBuffer, j, i)].r);
+                textureData.push_back(g_ColorBuffer.pixels[get_index(g_ColorBuffer, j, i)].g);
+                textureData.push_back(g_ColorBuffer.pixels[get_index(g_ColorBuffer, j, i)].b);
+                textureData.push_back(g_ColorBuffer.pixels[get_index(g_ColorBuffer, j, i)].a);
+            }
+        }
+        LoadTexture(textureData.data(), g_ScreenWidth, g_ScreenHeight);
+        
+        GLfloat vertex_data[] = {
+            -1.f, -1.f, 1.f, 1.f, // bottom left
+             1.f,  1.f, 1.f, 1.f, // top right
+            -1.f,  1.f,-1.f, 1.f, // top left
+             1.f,  1.f, 1.f, 1.f, // top left
+            -1.f, -1.f, 1.f, 1.f, // bottom left
+             1.f, -1.f, -1.f, 1.f // bottom right
+        };
+        GLfloat texture_coefficients[] = {
+            1.f, 0.f, // bottom left
+            0.f, 1.f, // top right
+            1.f, 1.f, // top left
+            0.f, 1.f, // top left
+            1.f, 0.f, // bottom left
+            0.f, 0.f  // bottom right
+        };
+        num_vertices = 6;
+        
+        for (int i = 0; i < 24; i++) {
+            close2gl_coefficients[i] = vertex_data[i];
+        }
+
+
         GLuint VBO_model_coefficients_id;
         glGenBuffers(1, &VBO_model_coefficients_id);
 
@@ -687,15 +1683,15 @@ GLuint BuildTriangles(ModelObject model)
         glGenVertexArrays(1, &vertex_array_object_id);
         glBindVertexArray(vertex_array_object_id);
         glBindBuffer(GL_ARRAY_BUFFER, VBO_model_coefficients_id);
-        glBufferData(GL_ARRAY_BUFFER, sizeof(close2gl_coefficients), NULL, GL_STATIC_DRAW);
-        glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(close2gl_coefficients), close2gl_coefficients);
+        glBufferData(GL_ARRAY_BUFFER, sizeof(vertex_data), NULL, GL_STATIC_DRAW);
+        glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(vertex_data), vertex_data);
 
         GLuint location = 0;
-        GLint number_of_dimensions = 4;
+        GLuint number_of_dimensions = 4;
         glVertexAttribPointer(location, number_of_dimensions, GL_FLOAT, GL_FALSE, 0, 0);
         glEnableVertexAttribArray(location);
         glBindBuffer(GL_ARRAY_BUFFER, 0);
-
+        
         GLuint indices[num_vertices];
         for (int i = 0; i < num_vertices; i++) {
             indices[i] = i;
@@ -704,7 +1700,8 @@ GLuint BuildTriangles(ModelObject model)
         SceneObject sceneModel;
         sceneModel.name           = "model";
         sceneModel.first_index    = (void*)0; 
-        sceneModel.num_indices    =  model.num_triangles * 3;
+      //  sceneModel.num_indices    =  12;
+        sceneModel.num_indices    = model.num_triangles * 3;
         sceneModel.rendering_mode = GL_TRIANGLES; 
         sceneModel.min_coord      = min_coord;
         sceneModel.max_coord      = max_coord;
@@ -715,6 +1712,17 @@ GLuint BuildTriangles(ModelObject model)
         glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, indices_id);
         glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices), NULL, GL_STATIC_DRAW);
         glBufferSubData(GL_ELEMENT_ARRAY_BUFFER, 0, sizeof(indices), indices);
+
+        GLuint VBO_texture_coefficients_id;
+        glGenBuffers(1, &VBO_texture_coefficients_id);
+        glBindBuffer(GL_ARRAY_BUFFER, VBO_texture_coefficients_id);
+        glBufferData(GL_ARRAY_BUFFER, sizeof(texture_coefficients), NULL, GL_STATIC_DRAW);
+        glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(texture_coefficients), texture_coefficients);
+        location = 3;
+        number_of_dimensions = 2;
+        glVertexAttribPointer(location, number_of_dimensions, GL_FLOAT, GL_FALSE, 0, 0);
+        glEnableVertexAttribArray(location);
+        glBindBuffer(GL_ARRAY_BUFFER, 0);
 
         glBindVertexArray(0);
         return vertex_array_object_id;
@@ -745,7 +1753,15 @@ GLuint BuildTriangles(ModelObject model)
         sceneModel.name           = "model";
         sceneModel.first_index    = (void*)0; 
         sceneModel.num_indices    =  model.num_triangles * 3;
-        sceneModel.rendering_mode = GL_TRIANGLES; 
+        if (g_TogglePoints) {
+            sceneModel.rendering_mode = GL_POINTS;
+        } else if (g_ToggleWireframe) {
+            sceneModel.rendering_mode = GL_TRIANGLES;
+            glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+        } else if (g_ToggleSolid) {
+            sceneModel.rendering_mode = GL_TRIANGLES;
+            glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+        }
         sceneModel.min_coord      = min_coord;
         sceneModel.max_coord      = max_coord;
         g_VirtualScene["model"] = sceneModel;
@@ -1044,10 +2060,14 @@ LRESULT CALLBACK WindowProcedure(HWND hWnd, UINT msg, WPARAM wp, LPARAM lp)
           case PROC_TOGGLE_CW: {
             int checkedState = SendMessageW(w_ToggleCW, BM_GETCHECK, 0, 0);
             if (checkedState == BST_CHECKED) {
-                glFrontFace(GL_CW);
+                if (!g_UseClose2GL) {
+                    glFrontFace(GL_CW);
+                }
                 g_ToggleCW = true;
             } else if (checkedState == BST_UNCHECKED) {
-                glFrontFace(GL_CCW);
+                if (!g_UseClose2GL) {
+                    glFrontFace(GL_CCW);
+                }
                 g_ToggleCW = false;
             }
             break;
@@ -1151,9 +2171,17 @@ LRESULT CALLBACK WindowProcedure(HWND hWnd, UINT msg, WPARAM wp, LPARAM lp)
             int checkedState = SendMessageW(w_ToggleGL, BM_GETCHECK, 0, 0);
             if (checkedState == BST_CHECKED) {
                 g_UseClose2GL = false;
+                if (g_ToggleCW) {
+                    glFrontFace(GL_CW);
+                } else {
+                    glFrontFace(GL_CCW);
+                }
                 printf("usando openGL\n");
             } else if (checkedState == BST_UNCHECKED) {
                 g_UseClose2GL = true;
+                glFrontFace(GL_CCW);
+                g_VirtualScene["model"].rendering_mode = GL_TRIANGLES;
+                glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
                 printf("usando close2GL\n");
             }
             g_VertexArrayObject_id = BuildTriangles(g_Model);
@@ -1166,12 +2194,25 @@ LRESULT CALLBACK WindowProcedure(HWND hWnd, UINT msg, WPARAM wp, LPARAM lp)
             int solid     = SendMessageW(w_ToggleSolid,     BM_GETCHECK, 0, 0);
             if (points == BST_CHECKED) {
                 g_TogglePoints = true;
+                if (!g_UseClose2GL) {
+                    g_VirtualScene["model"].rendering_mode = GL_POINTS;
+                }
             } else if (wireframe == BST_CHECKED) {
                 g_TogglePoints = false;
-                glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+                g_ToggleWireframe = true;
+                g_ToggleSolid = false;
+                if (!g_UseClose2GL) {
+                    g_VirtualScene["model"].rendering_mode = GL_TRIANGLES;
+                    glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+                }
             } else if (solid == BST_CHECKED) {
                 g_TogglePoints = false;
-                glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+                g_ToggleWireframe = false;
+                g_ToggleSolid = true;
+                if (!g_UseClose2GL) {
+                    g_VirtualScene["model"].rendering_mode = GL_TRIANGLES;
+                    glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+                }
             }
             break;
           }
@@ -1200,6 +2241,8 @@ LRESULT CALLBACK WindowProcedure(HWND hWnd, UINT msg, WPARAM wp, LPARAM lp)
             g_ScreenRatio = 800.0f/600.0f;
           }
           case PROC_NO_SHADING: {
+            g_ToggleGouraud = false;
+            g_TogglePhong = false;
             g_VertexShaderType = 0;
             g_FragmentShaderType = 0;
             glUniform1i(g_VertexShaderTypeLocation, g_VertexShaderType);
@@ -1208,6 +2251,8 @@ LRESULT CALLBACK WindowProcedure(HWND hWnd, UINT msg, WPARAM wp, LPARAM lp)
             break;
           }
           case PROC_GOURAUD_AD: {
+            g_ToggleGouraud = true;
+            g_TogglePhong = false;
             g_VertexShaderType = 1;  
             g_FragmentShaderType = 0;
             glUniform1i(g_VertexShaderTypeLocation, g_VertexShaderType);
@@ -1216,6 +2261,8 @@ LRESULT CALLBACK WindowProcedure(HWND hWnd, UINT msg, WPARAM wp, LPARAM lp)
             break;
           }
           case PROC_GOURAUD_ADS: {
+            g_ToggleGouraud = true;
+            g_TogglePhong = true;
             g_VertexShaderType = 2;
             g_FragmentShaderType = 0;
             glUniform1i(g_VertexShaderTypeLocation, g_VertexShaderType);
@@ -1224,6 +2271,8 @@ LRESULT CALLBACK WindowProcedure(HWND hWnd, UINT msg, WPARAM wp, LPARAM lp)
             break;
           }
           case PROC_PHONG: {
+            g_ToggleGouraud = false;
+            g_TogglePhong = false;
             g_VertexShaderType = 0;
             g_FragmentShaderType = 1;
             glUniform1i(g_VertexShaderTypeLocation, g_VertexShaderType);

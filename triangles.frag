@@ -4,12 +4,14 @@ in vec4 fragColor;
 in vec4 worldPosition;
 in vec4 modelPosition;
 in vec4 fragNormal;
+in vec2 texCoords;
 
 uniform int fragmentShaderType;
-
+uniform bool useClose2GL;
 #define NO_SHADER 0
 #define PHONG     1
 
+uniform sampler2D textureSampler;
 
 uniform mat4 modelMatrix;
 uniform mat4 viewMatrix;
@@ -52,6 +54,10 @@ subroutine (fragmentShader) vec4 noFragmentShader() {
 
 void main()
 {
+    if (useClose2GL) {
+        fColor = texture(textureSampler, texCoords);
+    } else {
+
     switch(fragmentShaderType) {
       case NO_SHADER: {
         fColor = noFragmentShader();
@@ -66,5 +72,5 @@ void main()
         break;
       }
     }
-    
+    }
 }
