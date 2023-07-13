@@ -632,8 +632,6 @@ void DrawTriangle(glm::vec4 v1, glm::vec4 v2, glm::vec4 v3, glm::vec3 c1, glm::v
         g_ColorBuffer.pixels[index].z = v3.z;
     }
     
-
-    
     // desenhar as arestas
     // find topmost vertex
     int topmost = 0;
@@ -692,7 +690,7 @@ void DrawTriangle(glm::vec4 v1, glm::vec4 v2, glm::vec4 v3, glm::vec3 c1, glm::v
             float rstep = (float)(rf - rini)/(float)pxTotal;
             float gstep = (float)(gf - gini)/(float)pxTotal;
             float bstep = (float)(bf - bini)/(float)pxTotal;
-            for (; xini <= xf; xini++) {
+            if (g_ToggleWireframe) {
                 index = get_index(g_ColorBuffer, floor(xini), floor(y0));
                 if (zini < g_ColorBuffer.pixels[index].z) {
                     g_ColorBuffer.pixels[index].r = rini * 255;
@@ -701,10 +699,29 @@ void DrawTriangle(glm::vec4 v1, glm::vec4 v2, glm::vec4 v3, glm::vec3 c1, glm::v
                     g_ColorBuffer.pixels[index].a = 255;
                     g_ColorBuffer.pixels[index].z = zini;
                 }
-                zini += zstep;
-                rini += rstep;
-                gini += gstep;
-                bini += bstep;
+                index = get_index(g_ColorBuffer, floor(xf), floor(y0));
+                if (zf < g_ColorBuffer.pixels[index].z) {
+                    g_ColorBuffer.pixels[index].r = rf * 255;
+                    g_ColorBuffer.pixels[index].g = gf * 255;
+                    g_ColorBuffer.pixels[index].b = bf * 255;
+                    g_ColorBuffer.pixels[index].a = 255;
+                    g_ColorBuffer.pixels[index].z = zf;
+                }
+            } else {
+                for (; xini <= xf; xini++) {
+                    index = get_index(g_ColorBuffer, floor(xini), floor(y0));
+                    if (zini < g_ColorBuffer.pixels[index].z) {
+                        g_ColorBuffer.pixels[index].r = rini * 255;
+                        g_ColorBuffer.pixels[index].g = gini * 255;
+                        g_ColorBuffer.pixels[index].b = bini * 255;
+                        g_ColorBuffer.pixels[index].a = 255;
+                        g_ColorBuffer.pixels[index].z = zini;
+                    }
+                    zini += zstep;
+                    rini += rstep;
+                    gini += gstep;
+                    bini += bstep;
+                }
             }
             y0 += 1;
         }
@@ -740,7 +757,7 @@ void DrawTriangle(glm::vec4 v1, glm::vec4 v2, glm::vec4 v3, glm::vec3 c1, glm::v
                 float rstep = (float)(rf - rini)/(float)pxTotal;
                 float gstep = (float)(gf - gini)/(float)pxTotal;
                 float bstep = (float)(bf - bini)/(float)pxTotal;
-                for (; xini <= xf; xini++) {
+                if (g_ToggleWireframe && !(floor(y0) == floor(v1.y) )) {
                     index = get_index(g_ColorBuffer, floor(xini), floor(y0));
                     if (zini < g_ColorBuffer.pixels[index].z) {
                         g_ColorBuffer.pixels[index].r = rini * 255;
@@ -749,10 +766,29 @@ void DrawTriangle(glm::vec4 v1, glm::vec4 v2, glm::vec4 v3, glm::vec3 c1, glm::v
                         g_ColorBuffer.pixels[index].a = 255;
                         g_ColorBuffer.pixels[index].z = zini;
                     }
-                    zini += zstep;
-                    rini += rstep;
-                    gini += gstep;
-                    bini += bstep;
+                    index = get_index(g_ColorBuffer, floor(xf), floor(y0));
+                    if (zf < g_ColorBuffer.pixels[index].z) {
+                        g_ColorBuffer.pixels[index].r = rf * 255;
+                        g_ColorBuffer.pixels[index].g = gf * 255;
+                        g_ColorBuffer.pixels[index].b = bf * 255;
+                        g_ColorBuffer.pixels[index].a = 255;
+                        g_ColorBuffer.pixels[index].z = zf;
+                    }
+                } else {
+                    for (; xini <= xf; xini++) {
+                        index = get_index(g_ColorBuffer, floor(xini), floor(y0));
+                        if (zini < g_ColorBuffer.pixels[index].z) {
+                            g_ColorBuffer.pixels[index].r = rini * 255;
+                            g_ColorBuffer.pixels[index].g = gini * 255;
+                            g_ColorBuffer.pixels[index].b = bini * 255;
+                            g_ColorBuffer.pixels[index].a = 255;
+                            g_ColorBuffer.pixels[index].z = zini;
+                        }
+                        zini += zstep;
+                        rini += rstep;
+                        gini += gstep;
+                        bini += bstep;
+                    }
                 }
             }
             //
@@ -787,7 +823,7 @@ void DrawTriangle(glm::vec4 v1, glm::vec4 v2, glm::vec4 v3, glm::vec3 c1, glm::v
                 float rstep = (float)(rf - rini)/(float)pxTotal;
                 float gstep = (float)(gf - gini)/(float)pxTotal;
                 float bstep = (float)(bf - bini)/(float)pxTotal;
-                for (; xini <= xf; xini++) {
+                if (g_ToggleWireframe) {
                     index = get_index(g_ColorBuffer, floor(xini), floor(y0));
                     if (zini < g_ColorBuffer.pixels[index].z) {
                         g_ColorBuffer.pixels[index].r = rini * 255;
@@ -796,10 +832,29 @@ void DrawTriangle(glm::vec4 v1, glm::vec4 v2, glm::vec4 v3, glm::vec3 c1, glm::v
                         g_ColorBuffer.pixels[index].a = 255;
                         g_ColorBuffer.pixels[index].z = zini;
                     }
-                    zini += zstep;
-                    rini += rstep;
-                    gini += gstep;
-                    bini += bstep;
+                    index = get_index(g_ColorBuffer, floor(xf), floor(y0));
+                    if (zf < g_ColorBuffer.pixels[index].z) {
+                        g_ColorBuffer.pixels[index].r = rf * 255;
+                        g_ColorBuffer.pixels[index].g = gf * 255;
+                        g_ColorBuffer.pixels[index].b = bf * 255;
+                        g_ColorBuffer.pixels[index].a = 255;
+                        g_ColorBuffer.pixels[index].z = zf;
+                    }
+                } else {
+                    for (; xini <= xf; xini++) {
+                        index = get_index(g_ColorBuffer, floor(xini), floor(y0));
+                        if (zini < g_ColorBuffer.pixels[index].z) {
+                            g_ColorBuffer.pixels[index].r = rini * 255;
+                            g_ColorBuffer.pixels[index].g = gini * 255;
+                            g_ColorBuffer.pixels[index].b = bini * 255;
+                            g_ColorBuffer.pixels[index].a = 255;
+                            g_ColorBuffer.pixels[index].z = zini;
+                        }
+                        zini += zstep;
+                        rini += rstep;
+                        gini += gstep;
+                        bini += bstep;
+                    }
                 }
                 y0 += 1;
             }
@@ -835,7 +890,7 @@ void DrawTriangle(glm::vec4 v1, glm::vec4 v2, glm::vec4 v3, glm::vec3 c1, glm::v
                 float rstep = (float)(rf - rini)/(float)pxTotal;
                 float gstep = (float)(gf - gini)/(float)pxTotal;
                 float bstep = (float)(bf - bini)/(float)pxTotal;
-                for (; xini <= xf; xini++) {
+                if (g_ToggleWireframe && !(floor(y0) == floor(v1.y))) {
                     index = get_index(g_ColorBuffer, floor(xini), floor(y0));
                     if (zini < g_ColorBuffer.pixels[index].z) {
                         g_ColorBuffer.pixels[index].r = rini * 255;
@@ -844,10 +899,29 @@ void DrawTriangle(glm::vec4 v1, glm::vec4 v2, glm::vec4 v3, glm::vec3 c1, glm::v
                         g_ColorBuffer.pixels[index].a = 255;
                         g_ColorBuffer.pixels[index].z = zini;
                     }
-                    zini += zstep;
-                    rini += rstep;
-                    gini += gstep;
-                    bini += bstep;
+                    index = get_index(g_ColorBuffer, floor(xf), floor(y0));
+                    if (zf < g_ColorBuffer.pixels[index].z) {
+                        g_ColorBuffer.pixels[index].r = rf * 255;
+                        g_ColorBuffer.pixels[index].g = gf * 255;
+                        g_ColorBuffer.pixels[index].b = bf * 255;
+                        g_ColorBuffer.pixels[index].a = 255;
+                        g_ColorBuffer.pixels[index].z = zf;
+                    }
+                } else {
+                    for (; xini <= xf; xini++) {
+                        index = get_index(g_ColorBuffer, floor(xini), floor(y0));
+                        if (zini < g_ColorBuffer.pixels[index].z) {
+                            g_ColorBuffer.pixels[index].r = rini * 255;
+                            g_ColorBuffer.pixels[index].g = gini * 255;
+                            g_ColorBuffer.pixels[index].b = bini * 255;
+                            g_ColorBuffer.pixels[index].a = 255;
+                            g_ColorBuffer.pixels[index].z = zini;
+                        }
+                        zini += zstep;
+                        rini += rstep;
+                        gini += gstep;
+                        bini += bstep;
+                    }
                 }
             }
             //
@@ -882,7 +956,7 @@ void DrawTriangle(glm::vec4 v1, glm::vec4 v2, glm::vec4 v3, glm::vec3 c1, glm::v
                 float rstep = (float)(rf - rini)/(float)pxTotal;
                 float gstep = (float)(gf - gini)/(float)pxTotal;
                 float bstep = (float)(bf - bini)/(float)pxTotal;
-                for (; xini <= xf; xini++) {
+                if (g_ToggleWireframe) {
                     index = get_index(g_ColorBuffer, floor(xini), floor(y0));
                     if (zini < g_ColorBuffer.pixels[index].z) {
                         g_ColorBuffer.pixels[index].r = rini * 255;
@@ -891,12 +965,69 @@ void DrawTriangle(glm::vec4 v1, glm::vec4 v2, glm::vec4 v3, glm::vec3 c1, glm::v
                         g_ColorBuffer.pixels[index].a = 255;
                         g_ColorBuffer.pixels[index].z = zini;
                     }
-                    zini += zstep;
-                    rini += rstep;
-                    gini += gstep;
-                    bini += bstep;
+                    index = get_index(g_ColorBuffer, floor(xf), floor(y0));
+                    if (zf < g_ColorBuffer.pixels[index].z) {
+                        g_ColorBuffer.pixels[index].r = rf * 255;
+                        g_ColorBuffer.pixels[index].g = gf * 255;
+                        g_ColorBuffer.pixels[index].b = bf * 255;
+                        g_ColorBuffer.pixels[index].a = 255;
+                        g_ColorBuffer.pixels[index].z = zf;
+                    }
+                } else {
+                    for (; xini <= xf; xini++) {
+                        index = get_index(g_ColorBuffer, floor(xini), floor(y0));
+                        if (zini < g_ColorBuffer.pixels[index].z) {
+                            g_ColorBuffer.pixels[index].r = rini * 255;
+                            g_ColorBuffer.pixels[index].g = gini * 255;
+                            g_ColorBuffer.pixels[index].b = bini * 255;
+                            g_ColorBuffer.pixels[index].a = 255;
+                            g_ColorBuffer.pixels[index].z = zini;
+                        }
+                        zini += zstep;
+                        rini += rstep;
+                        gini += gstep;
+                        bini += bstep;
+                    }
                 }
                 y0 += 1;
+            }
+        }
+        if (floor(y0) == floor(v3.y) && floor(y0) == floor(v2.y)) {
+            int xini = 0, xf = 0;
+            float zini, zf;
+            float rini, gini, bini;
+            float rf, gf, bf;
+            if (floor(xe1) > floor(xe2)) {
+                xini = floor(xe2); xf = floor(xe1);
+                zini = ze2;        zf = ze1;
+                rini = re2;        rf = re1;
+                gini = ge2;        gf = ge1;
+                bini = be2;        bf = be1;
+            } else {
+                xini = floor(xe1); xf = floor(xe2);
+                zini = ze1;        zf = ze2;
+                rini = re1;        rf = re2;
+                gini = ge1;        gf = ge2;
+                bini = be1;        bf = be2;
+            }
+            int pxTotal = xf - xini;
+            float zstep = (float)(zf - zini)/(float)pxTotal;
+            float rstep = (float)(rf - rini)/(float)pxTotal;
+            float gstep = (float)(gf - gini)/(float)pxTotal;
+            float bstep = (float)(bf - bini)/(float)pxTotal;
+            for (; xini <= xf; xini++) {
+                index = get_index(g_ColorBuffer, floor(xini), floor(y0));
+                if (zini < g_ColorBuffer.pixels[index].z) {
+                    g_ColorBuffer.pixels[index].r = rini * 255;
+                    g_ColorBuffer.pixels[index].g = gini * 255;
+                    g_ColorBuffer.pixels[index].b = bini * 255;
+                    g_ColorBuffer.pixels[index].a = 255;
+                    g_ColorBuffer.pixels[index].z = zini;
+                }
+                zini += zstep;
+                rini += rstep;
+                gini += gstep;
+                bini += bstep;
             }
         }
       }
@@ -948,7 +1079,7 @@ void DrawTriangle(glm::vec4 v1, glm::vec4 v2, glm::vec4 v3, glm::vec3 c1, glm::v
             float rstep = (float)(rf - rini)/(float)pxTotal;
             float gstep = (float)(gf - gini)/(float)pxTotal;
             float bstep = (float)(bf - bini)/(float)pxTotal;
-            for (; xini <= xf; xini++) {
+            if (g_ToggleWireframe) {
                 index = get_index(g_ColorBuffer, floor(xini), floor(y0));
                 if (zini < g_ColorBuffer.pixels[index].z) {
                     g_ColorBuffer.pixels[index].r = rini * 255;
@@ -957,10 +1088,29 @@ void DrawTriangle(glm::vec4 v1, glm::vec4 v2, glm::vec4 v3, glm::vec3 c1, glm::v
                     g_ColorBuffer.pixels[index].a = 255;
                     g_ColorBuffer.pixels[index].z = zini;
                 }
-                zini += zstep;
-                rini += rstep;
-                gini += gstep;
-                bini += bstep;
+                index = get_index(g_ColorBuffer, floor(xf), floor(y0));
+                if (zf < g_ColorBuffer.pixels[index].z) {
+                    g_ColorBuffer.pixels[index].r = rf * 255;
+                    g_ColorBuffer.pixels[index].g = gf * 255;
+                    g_ColorBuffer.pixels[index].b = bf * 255;
+                    g_ColorBuffer.pixels[index].a = 255;
+                    g_ColorBuffer.pixels[index].z = zf;
+                }
+            } else {
+                for (; xini <= xf; xini++) {
+                    index = get_index(g_ColorBuffer, floor(xini), floor(y0));
+                    if (zini < g_ColorBuffer.pixels[index].z) {
+                        g_ColorBuffer.pixels[index].r = rini * 255;
+                        g_ColorBuffer.pixels[index].g = gini * 255;
+                        g_ColorBuffer.pixels[index].b = bini * 255;
+                        g_ColorBuffer.pixels[index].a = 255;
+                        g_ColorBuffer.pixels[index].z = zini;
+                    }
+                    zini += zstep;
+                    rini += rstep;
+                    gini += gstep;
+                    bini += bstep;
+                }
             }
             y0 += 1;
         }
@@ -996,7 +1146,7 @@ void DrawTriangle(glm::vec4 v1, glm::vec4 v2, glm::vec4 v3, glm::vec3 c1, glm::v
                 float rstep = (float)(rf - rini)/(float)pxTotal;
                 float gstep = (float)(gf - gini)/(float)pxTotal;
                 float bstep = (float)(bf - bini)/(float)pxTotal;
-                for (; xini <= xf; xini++) {
+                if (g_ToggleWireframe && !(floor(y0) == floor(v2.y))) {
                     index = get_index(g_ColorBuffer, floor(xini), floor(y0));
                     if (zini < g_ColorBuffer.pixels[index].z) {
                         g_ColorBuffer.pixels[index].r = rini * 255;
@@ -1005,10 +1155,29 @@ void DrawTriangle(glm::vec4 v1, glm::vec4 v2, glm::vec4 v3, glm::vec3 c1, glm::v
                         g_ColorBuffer.pixels[index].a = 255;
                         g_ColorBuffer.pixels[index].z = zini;
                     }
-                    zini += zstep;
-                    rini += rstep;
-                    gini += gstep;
-                    bini += bstep;
+                    index = get_index(g_ColorBuffer, floor(xf), floor(y0));
+                    if (zf < g_ColorBuffer.pixels[index].z) {
+                        g_ColorBuffer.pixels[index].r = rf * 255;
+                        g_ColorBuffer.pixels[index].g = gf * 255;
+                        g_ColorBuffer.pixels[index].b = bf * 255;
+                        g_ColorBuffer.pixels[index].a = 255;
+                        g_ColorBuffer.pixels[index].z = zf;
+                    }
+                } else {
+                    for (; xini <= xf; xini++) {
+                        index = get_index(g_ColorBuffer, floor(xini), floor(y0));
+                        if (zini < g_ColorBuffer.pixels[index].z) {
+                            g_ColorBuffer.pixels[index].r = rini * 255;
+                            g_ColorBuffer.pixels[index].g = gini * 255;
+                            g_ColorBuffer.pixels[index].b = bini * 255;
+                            g_ColorBuffer.pixels[index].a = 255;
+                            g_ColorBuffer.pixels[index].z = zini;
+                        }
+                        zini += zstep;
+                        rini += rstep;
+                        gini += gstep;
+                        bini += bstep;
+                    }
                 }
             }
             //
@@ -1043,7 +1212,7 @@ void DrawTriangle(glm::vec4 v1, glm::vec4 v2, glm::vec4 v3, glm::vec3 c1, glm::v
                 float rstep = (float)(rf - rini)/(float)pxTotal;
                 float gstep = (float)(gf - gini)/(float)pxTotal;
                 float bstep = (float)(bf - bini)/(float)pxTotal;
-                for (; xini <= xf; xini++) {
+                if (g_ToggleWireframe) {
                     index = get_index(g_ColorBuffer, floor(xini), floor(y0));
                     if (zini < g_ColorBuffer.pixels[index].z) {
                         g_ColorBuffer.pixels[index].r = rini * 255;
@@ -1052,10 +1221,29 @@ void DrawTriangle(glm::vec4 v1, glm::vec4 v2, glm::vec4 v3, glm::vec3 c1, glm::v
                         g_ColorBuffer.pixels[index].a = 255;
                         g_ColorBuffer.pixels[index].z = zini;
                     }
-                    zini += zstep;
-                    rini += rstep;
-                    gini += gstep;
-                    bini += bstep;
+                    index = get_index(g_ColorBuffer, floor(xf), floor(y0));
+                    if (zf < g_ColorBuffer.pixels[index].z) {
+                        g_ColorBuffer.pixels[index].r = rf * 255;
+                        g_ColorBuffer.pixels[index].g = gf * 255;
+                        g_ColorBuffer.pixels[index].b = bf * 255;
+                        g_ColorBuffer.pixels[index].a = 255;
+                        g_ColorBuffer.pixels[index].z = zf;
+                    }
+                } else {
+                    for (; xini <= xf; xini++) {
+                        index = get_index(g_ColorBuffer, floor(xini), floor(y0));
+                        if (zini < g_ColorBuffer.pixels[index].z) {
+                            g_ColorBuffer.pixels[index].r = rini * 255;
+                            g_ColorBuffer.pixels[index].g = gini * 255;
+                            g_ColorBuffer.pixels[index].b = bini * 255;
+                            g_ColorBuffer.pixels[index].a = 255;
+                            g_ColorBuffer.pixels[index].z = zini;
+                        }
+                        zini += zstep;
+                        rini += rstep;
+                        gini += gstep;
+                        bini += bstep;
+                    }
                 }
                 y0 += 1;
             }
@@ -1092,7 +1280,7 @@ void DrawTriangle(glm::vec4 v1, glm::vec4 v2, glm::vec4 v3, glm::vec3 c1, glm::v
                 float rstep = (float)(rf - rini)/(float)pxTotal;
                 float gstep = (float)(gf - gini)/(float)pxTotal;
                 float bstep = (float)(bf - bini)/(float)pxTotal;
-                for (; xini <= xf; xini++) {
+                if (g_ToggleWireframe && !(floor(y0) == floor(v2.y))) {
                     index = get_index(g_ColorBuffer, floor(xini), floor(y0));
                     if (zini < g_ColorBuffer.pixels[index].z) {
                         g_ColorBuffer.pixels[index].r = rini * 255;
@@ -1101,10 +1289,29 @@ void DrawTriangle(glm::vec4 v1, glm::vec4 v2, glm::vec4 v3, glm::vec3 c1, glm::v
                         g_ColorBuffer.pixels[index].a = 255;
                         g_ColorBuffer.pixels[index].z = zini;
                     }
-                    zini += zstep;
-                    rini += rstep;
-                    gini += gstep;
-                    bini += bstep;
+                    index = get_index(g_ColorBuffer, floor(xf), floor(y0));
+                    if (zf < g_ColorBuffer.pixels[index].z) {
+                        g_ColorBuffer.pixels[index].r = rf * 255;
+                        g_ColorBuffer.pixels[index].g = gf * 255;
+                        g_ColorBuffer.pixels[index].b = bf * 255;
+                        g_ColorBuffer.pixels[index].a = 255;
+                        g_ColorBuffer.pixels[index].z = zf;
+                    }
+                } else {
+                    for (; xini <= xf; xini++) {
+                        index = get_index(g_ColorBuffer, floor(xini), floor(y0));
+                        if (zini < g_ColorBuffer.pixels[index].z) {
+                            g_ColorBuffer.pixels[index].r = rini * 255;
+                            g_ColorBuffer.pixels[index].g = gini * 255;
+                            g_ColorBuffer.pixels[index].b = bini * 255;
+                            g_ColorBuffer.pixels[index].a = 255;
+                            g_ColorBuffer.pixels[index].z = zini;
+                        }
+                        zini += zstep;
+                        rini += rstep;
+                        gini += gstep;
+                        bini += bstep;
+                    }
                 }
             }
             //
@@ -1139,7 +1346,7 @@ void DrawTriangle(glm::vec4 v1, glm::vec4 v2, glm::vec4 v3, glm::vec3 c1, glm::v
                 float rstep = (float)(rf - rini)/(float)pxTotal;
                 float gstep = (float)(gf - gini)/(float)pxTotal;
                 float bstep = (float)(bf - bini)/(float)pxTotal;
-                for (; xini <= xf; xini++) {
+                if (g_ToggleWireframe) {
                     index = get_index(g_ColorBuffer, floor(xini), floor(y0));
                     if (zini < g_ColorBuffer.pixels[index].z) {
                         g_ColorBuffer.pixels[index].r = rini * 255;
@@ -1148,12 +1355,69 @@ void DrawTriangle(glm::vec4 v1, glm::vec4 v2, glm::vec4 v3, glm::vec3 c1, glm::v
                         g_ColorBuffer.pixels[index].a = 255;
                         g_ColorBuffer.pixels[index].z = zini;
                     }
-                    zini += zstep;
-                    rini += rstep;
-                    gini += gstep;
-                    bini += bstep;
+                    index = get_index(g_ColorBuffer, floor(xf), floor(y0));
+                    if (zf < g_ColorBuffer.pixels[index].z) {
+                        g_ColorBuffer.pixels[index].r = rf * 255;
+                        g_ColorBuffer.pixels[index].g = gf * 255;
+                        g_ColorBuffer.pixels[index].b = bf * 255;
+                        g_ColorBuffer.pixels[index].a = 255;
+                        g_ColorBuffer.pixels[index].z = zf;
+                    }
+                } else {
+                    for (; xini <= xf; xini++) {
+                        index = get_index(g_ColorBuffer, floor(xini), floor(y0));
+                        if (zini < g_ColorBuffer.pixels[index].z) {
+                            g_ColorBuffer.pixels[index].r = rini * 255;
+                            g_ColorBuffer.pixels[index].g = gini * 255;
+                            g_ColorBuffer.pixels[index].b = bini * 255;
+                            g_ColorBuffer.pixels[index].a = 255;
+                            g_ColorBuffer.pixels[index].z = zini;
+                        }
+                        zini += zstep;
+                        rini += rstep;
+                        gini += gstep;
+                        bini += bstep;
+                    }
                 }
                 y0 += 1;
+            }
+        }
+        if (floor(y0) == floor(v1.y) && floor(y0) == floor(v3.y)) {
+            int xini = 0, xf = 0;
+            float zini, zf;
+            float rini, gini, bini;
+            float rf, gf, bf;
+            if (floor(xe1) > floor(xe2)) {
+                xini = floor(xe2); xf = floor(xe1);
+                zini = ze2;        zf = ze1;
+                rini = re2;        rf = re1;
+                gini = ge2;        gf = ge1;
+                bini = be2;        bf = be1;
+            } else {
+                xini = floor(xe1); xf = floor(xe2);
+                zini = ze1;        zf = ze2;
+                rini = re1;        rf = re2;
+                gini = ge1;        gf = ge2;
+                bini = be1;        bf = be2;
+            }
+            int pxTotal = xf - xini;
+            float zstep = (float)(zf - zini)/(float)pxTotal;
+            float rstep = (float)(rf - rini)/(float)pxTotal;
+            float gstep = (float)(gf - gini)/(float)pxTotal;
+            float bstep = (float)(bf - bini)/(float)pxTotal;
+            for (; xini <= xf; xini++) {
+                index = get_index(g_ColorBuffer, floor(xini), floor(y0));
+                if (zini < g_ColorBuffer.pixels[index].z) {
+                    g_ColorBuffer.pixels[index].r = rini * 255;
+                    g_ColorBuffer.pixels[index].g = gini * 255;
+                    g_ColorBuffer.pixels[index].b = bini * 255;
+                    g_ColorBuffer.pixels[index].a = 255;
+                    g_ColorBuffer.pixels[index].z = zini;
+                }
+                zini += zstep;
+                rini += rstep;
+                gini += gstep;
+                bini += bstep;
             }
         }
       }
@@ -1205,7 +1469,7 @@ void DrawTriangle(glm::vec4 v1, glm::vec4 v2, glm::vec4 v3, glm::vec3 c1, glm::v
             float rstep = (float)(rf - rini)/(float)pxTotal;
             float gstep = (float)(gf - gini)/(float)pxTotal;
             float bstep = (float)(bf - bini)/(float)pxTotal;
-            for (; xini <= xf; xini++) {
+            if (g_ToggleWireframe) {
                 index = get_index(g_ColorBuffer, floor(xini), floor(y0));
                 if (zini < g_ColorBuffer.pixels[index].z) {
                     g_ColorBuffer.pixels[index].r = rini * 255;
@@ -1214,10 +1478,29 @@ void DrawTriangle(glm::vec4 v1, glm::vec4 v2, glm::vec4 v3, glm::vec3 c1, glm::v
                     g_ColorBuffer.pixels[index].a = 255;
                     g_ColorBuffer.pixels[index].z = zini;
                 }
-                zini += zstep;
-                rini += rstep;
-                gini += gstep;
-                bini += bstep;
+                index = get_index(g_ColorBuffer, floor(xf), floor(y0));
+                if (zf < g_ColorBuffer.pixels[index].z) {
+                    g_ColorBuffer.pixels[index].r = rf * 255;
+                    g_ColorBuffer.pixels[index].g = gf * 255;
+                    g_ColorBuffer.pixels[index].b = bf * 255;
+                    g_ColorBuffer.pixels[index].a = 255;
+                    g_ColorBuffer.pixels[index].z = zf;
+                }
+            } else {
+                for (; xini <= xf; xini++) {
+                    index = get_index(g_ColorBuffer, floor(xini), floor(y0));
+                    if (zini < g_ColorBuffer.pixels[index].z) {
+                        g_ColorBuffer.pixels[index].r = rini * 255;
+                        g_ColorBuffer.pixels[index].g = gini * 255;
+                        g_ColorBuffer.pixels[index].b = bini * 255;
+                        g_ColorBuffer.pixels[index].a = 255;
+                        g_ColorBuffer.pixels[index].z = zini;
+                    }
+                    zini += zstep;
+                    rini += rstep;
+                    gini += gstep;
+                    bini += bstep;
+                }
             }
             y0 += 1;
         }
@@ -1253,7 +1536,7 @@ void DrawTriangle(glm::vec4 v1, glm::vec4 v2, glm::vec4 v3, glm::vec3 c1, glm::v
                 float rstep = (float)(rf - rini)/(float)pxTotal;
                 float gstep = (float)(gf - gini)/(float)pxTotal;
                 float bstep = (float)(bf - bini)/(float)pxTotal;
-                for (; xini <= xf; xini++) {
+                if (g_ToggleWireframe && !(floor(y0) == floor(v3.y))) {
                     index = get_index(g_ColorBuffer, floor(xini), floor(y0));
                     if (zini < g_ColorBuffer.pixels[index].z) {
                         g_ColorBuffer.pixels[index].r = rini * 255;
@@ -1262,10 +1545,29 @@ void DrawTriangle(glm::vec4 v1, glm::vec4 v2, glm::vec4 v3, glm::vec3 c1, glm::v
                         g_ColorBuffer.pixels[index].a = 255;
                         g_ColorBuffer.pixels[index].z = zini;
                     }
-                    zini += zstep;
-                    rini += rstep;
-                    gini += gstep;
-                    bini += bstep;
+                    index = get_index(g_ColorBuffer, floor(xf), floor(y0));
+                    if (zf < g_ColorBuffer.pixels[index].z) {
+                        g_ColorBuffer.pixels[index].r = rf * 255;
+                        g_ColorBuffer.pixels[index].g = gf * 255;
+                        g_ColorBuffer.pixels[index].b = bf * 255;
+                        g_ColorBuffer.pixels[index].a = 255;
+                        g_ColorBuffer.pixels[index].z = zf;
+                    }
+                } else {
+                    for (; xini <= xf; xini++) {
+                        index = get_index(g_ColorBuffer, floor(xini), floor(y0));
+                        if (zini < g_ColorBuffer.pixels[index].z) {
+                            g_ColorBuffer.pixels[index].r = rini * 255;
+                            g_ColorBuffer.pixels[index].g = gini * 255;
+                            g_ColorBuffer.pixels[index].b = bini * 255;
+                            g_ColorBuffer.pixels[index].a = 255;
+                            g_ColorBuffer.pixels[index].z = zini;
+                        }
+                        zini += zstep;
+                        rini += rstep;
+                        gini += gstep;
+                        bini += bstep;
+                    }
                 }
             }
             //
@@ -1300,7 +1602,7 @@ void DrawTriangle(glm::vec4 v1, glm::vec4 v2, glm::vec4 v3, glm::vec3 c1, glm::v
                 float rstep = (float)(rf - rini)/(float)pxTotal;
                 float gstep = (float)(gf - gini)/(float)pxTotal;
                 float bstep = (float)(bf - bini)/(float)pxTotal;
-                for (; xini <= xf; xini++) {
+                if (g_ToggleWireframe) {
                     index = get_index(g_ColorBuffer, floor(xini), floor(y0));
                     if (zini < g_ColorBuffer.pixels[index].z) {
                         g_ColorBuffer.pixels[index].r = rini * 255;
@@ -1309,10 +1611,29 @@ void DrawTriangle(glm::vec4 v1, glm::vec4 v2, glm::vec4 v3, glm::vec3 c1, glm::v
                         g_ColorBuffer.pixels[index].a = 255;
                         g_ColorBuffer.pixels[index].z = zini;
                     }
-                    zini += zstep;
-                    rini += rstep;
-                    gini += gstep;
-                    bini += bstep;
+                    index = get_index(g_ColorBuffer, floor(xf), floor(y0));
+                    if (zf < g_ColorBuffer.pixels[index].z) {
+                        g_ColorBuffer.pixels[index].r = rf * 255;
+                        g_ColorBuffer.pixels[index].g = gf * 255;
+                        g_ColorBuffer.pixels[index].b = bf * 255;
+                        g_ColorBuffer.pixels[index].a = 255;
+                        g_ColorBuffer.pixels[index].z = zf;
+                    }
+                } else {
+                    for (; xini <= xf; xini++) {
+                        index = get_index(g_ColorBuffer, floor(xini), floor(y0));
+                        if (zini < g_ColorBuffer.pixels[index].z) {
+                            g_ColorBuffer.pixels[index].r = rini * 255;
+                            g_ColorBuffer.pixels[index].g = gini * 255;
+                            g_ColorBuffer.pixels[index].b = bini * 255;
+                            g_ColorBuffer.pixels[index].a = 255;
+                            g_ColorBuffer.pixels[index].z = zini;
+                        }
+                        zini += zstep;
+                        rini += rstep;
+                        gini += gstep;
+                        bini += bstep;
+                    }
                 }
                 y0 += 1;
             }
@@ -1348,7 +1669,7 @@ void DrawTriangle(glm::vec4 v1, glm::vec4 v2, glm::vec4 v3, glm::vec3 c1, glm::v
                 float rstep = (float)(rf - rini)/(float)pxTotal;
                 float gstep = (float)(gf - gini)/(float)pxTotal;
                 float bstep = (float)(bf - bini)/(float)pxTotal;
-                for (; xini <= xf; xini++) {
+                if (g_ToggleWireframe && !(floor(y0) == floor(v3.y))) {
                     index = get_index(g_ColorBuffer, floor(xini), floor(y0));
                     if (zini < g_ColorBuffer.pixels[index].z) {
                         g_ColorBuffer.pixels[index].r = rini * 255;
@@ -1357,10 +1678,29 @@ void DrawTriangle(glm::vec4 v1, glm::vec4 v2, glm::vec4 v3, glm::vec3 c1, glm::v
                         g_ColorBuffer.pixels[index].a = 255;
                         g_ColorBuffer.pixels[index].z = zini;
                     }
-                    zini += zstep;
-                    rini += rstep;
-                    gini += gstep;
-                    bini += bstep;
+                    index = get_index(g_ColorBuffer, floor(xf), floor(y0));
+                    if (zf < g_ColorBuffer.pixels[index].z) {
+                        g_ColorBuffer.pixels[index].r = rf * 255;
+                        g_ColorBuffer.pixels[index].g = gf * 255;
+                        g_ColorBuffer.pixels[index].b = bf * 255;
+                        g_ColorBuffer.pixels[index].a = 255;
+                        g_ColorBuffer.pixels[index].z = zf;
+                    }
+                } else {
+                    for (; xini <= xf; xini++) {
+                        index = get_index(g_ColorBuffer, floor(xini), floor(y0));
+                        if (zini < g_ColorBuffer.pixels[index].z) {
+                            g_ColorBuffer.pixels[index].r = rini * 255;
+                            g_ColorBuffer.pixels[index].g = gini * 255;
+                            g_ColorBuffer.pixels[index].b = bini * 255;
+                            g_ColorBuffer.pixels[index].a = 255;
+                            g_ColorBuffer.pixels[index].z = zini;
+                        }
+                        zini += zstep;
+                        rini += rstep;
+                        gini += gstep;
+                        bini += bstep;
+                    }
                 }
             }
             //
@@ -1395,7 +1735,7 @@ void DrawTriangle(glm::vec4 v1, glm::vec4 v2, glm::vec4 v3, glm::vec3 c1, glm::v
                 float rstep = (float)(rf - rini)/(float)pxTotal;
                 float gstep = (float)(gf - gini)/(float)pxTotal;
                 float bstep = (float)(bf - bini)/(float)pxTotal;
-                for (; xini <= xf; xini++) {
+                if (g_ToggleWireframe) {
                     index = get_index(g_ColorBuffer, floor(xini), floor(y0));
                     if (zini < g_ColorBuffer.pixels[index].z) {
                         g_ColorBuffer.pixels[index].r = rini * 255;
@@ -1404,12 +1744,69 @@ void DrawTriangle(glm::vec4 v1, glm::vec4 v2, glm::vec4 v3, glm::vec3 c1, glm::v
                         g_ColorBuffer.pixels[index].a = 255;
                         g_ColorBuffer.pixels[index].z = zini;
                     }
-                    zini += zstep;
-                    rini += rstep;
-                    gini += gstep;
-                    bini += bstep;
+                    index = get_index(g_ColorBuffer, floor(xf), floor(y0));
+                    if (zf < g_ColorBuffer.pixels[index].z) {
+                        g_ColorBuffer.pixels[index].r = rf * 255;
+                        g_ColorBuffer.pixels[index].g = gf * 255;
+                        g_ColorBuffer.pixels[index].b = bf * 255;
+                        g_ColorBuffer.pixels[index].a = 255;
+                        g_ColorBuffer.pixels[index].z = zf;
+                    }
+                } else {
+                    for (; xini <= xf; xini++) {
+                        index = get_index(g_ColorBuffer, floor(xini), floor(y0));
+                        if (zini < g_ColorBuffer.pixels[index].z) {
+                            g_ColorBuffer.pixels[index].r = rini * 255;
+                            g_ColorBuffer.pixels[index].g = gini * 255;
+                            g_ColorBuffer.pixels[index].b = bini * 255;
+                            g_ColorBuffer.pixels[index].a = 255;
+                            g_ColorBuffer.pixels[index].z = zini;
+                        }
+                        zini += zstep;
+                        rini += rstep;
+                        gini += gstep;
+                        bini += bstep;
+                    }
                 }
                 y0 += 1;
+            }
+        }
+        if (floor(y0) == floor(v1.y) && floor(y0) == floor(v2.y)) {
+            int xini = 0, xf = 0;
+            float zini, zf;
+            float rini, gini, bini;
+            float rf, gf, bf;
+            if (floor(xe1) > floor(xe2)) {
+                xini = floor(xe2); xf = floor(xe1);
+                zini = ze2;        zf = ze1;
+                rini = re2;        rf = re1;
+                gini = ge2;        gf = ge1;
+                bini = be2;        bf = be1;
+            } else {
+                xini = floor(xe1); xf = floor(xe2);
+                zini = ze1;        zf = ze2;
+                rini = re1;        rf = re2;
+                gini = ge1;        gf = ge2;
+                bini = be1;        bf = be2;
+            }
+            int pxTotal = xf - xini;
+            float zstep = (float)(zf - zini)/(float)pxTotal;
+            float rstep = (float)(rf - rini)/(float)pxTotal;
+            float gstep = (float)(gf - gini)/(float)pxTotal;
+            float bstep = (float)(bf - bini)/(float)pxTotal;
+            for (; xini <= xf; xini++) {
+                index = get_index(g_ColorBuffer, floor(xini), floor(y0));
+                if (zini < g_ColorBuffer.pixels[index].z) {
+                    g_ColorBuffer.pixels[index].r = rini * 255;
+                    g_ColorBuffer.pixels[index].g = gini * 255;
+                    g_ColorBuffer.pixels[index].b = bini * 255;
+                    g_ColorBuffer.pixels[index].a = 255;
+                    g_ColorBuffer.pixels[index].z = zini;
+                }
+                zini += zstep;
+                rini += rstep;
+                gini += gstep;
+                bini += bstep;
             }
         }
       }
