@@ -8,12 +8,9 @@ in vec2 texCoords;
 
 uniform int fragmentShaderType;
 uniform bool useClose2GL;
-uniform bool useTexture;
 #define NO_SHADER 0
 #define PHONG     1
 
-
-uniform sampler2D textureC2GL;
 uniform sampler2D textureSampler;
 
 uniform mat4 modelMatrix;
@@ -23,9 +20,9 @@ uniform vec4 LightDir;
 
 out vec4 fColor;
 
-subroutine vec4 fragmentShader(vec4 baseColor);
+subroutine vec4 fragmentShader();
 
-subroutine (fragmentShader) vec4 phongShader(vec4 baseColor) {
+subroutine (fragmentShader) vec4 phongShader() {
     vec4 origin = vec4(0.0, 0.0, 0.0, 1.0);
     vec4 cameraPosition = inverse(viewMatrix) * origin;
     
@@ -45,40 +42,35 @@ subroutine (fragmentShader) vec4 phongShader(vec4 baseColor) {
     vec3 phongSpecularTerm = Ks * pow(max(0.0, dot(reflectionDirection, viewDirection)), q);
     
     vec4 outputColor = vec4(0.0);
-    outputColor.rgb = (ambientTerm+lambertDiffuseTerm+phongSpecularTerm) * baseColor.rgb;
+    outputColor.rgb = (ambientTerm+lambertDiffuseTerm+phongSpecularTerm) * fragColor.rgb;
     outputColor.rgb = pow(outputColor.rgb, vec3(1.0,1.0,1.0)/2.2);
     outputColor.a = 1.0;
     return outputColor;
 }
 
-subroutine (fragmentShader) vec4 noFragmentShader(vec4 baseColor) {
-    return baseColor;
+subroutine (fragmentShader) vec4 noFragmentShader() {
+    return fragColor;
 }
 
 void main()
 {
     if (useClose2GL) {
-        fColor = texture(textureC2GL, texCoords);
+        fColor = texture(textureSampler, texCoords);
     } else {
-        vec4 baseColor;
-        if (useTexture) {
-            baseColor = texture(textureSampler, texCoords);
-        } else {
-            baseColor = fragColor;
-        }
-        switch(fragmentShaderType) {
-          case NO_SHADER: {
-            fColor = noFragmentShader(baseColor);
-            break;
-          }
-          case PHONG: {
-            fColor = phongShader(baseColor);
-            break;
-          }
-          default: {
-            fColor = noFragmentShader(baseColor);
-            break;
-          }
-        }
+
+    switch(fragmentShaderType) {
+      case NO_SHADER: {
+        fColor = noFragmentShader();
+        break;
+      }
+      case PHONG: {
+        fColor = phongShader();
+        break;
+      }
+      default: {
+        fColor = noFragmentShader();
+        break;
+      }
+    }
     }
 }

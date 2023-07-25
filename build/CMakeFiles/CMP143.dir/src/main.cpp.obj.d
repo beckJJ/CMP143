@@ -1,6 +1,5 @@
 CMakeFiles/CMP143.dir/src/main.cpp.obj: \
  D:\UFRGS\2023-1\Computacao\ Grafica\CMP143\src\main.cpp \
- D:/UFRGS/2023-1/Computacao\ Grafica/CMP143/include/GL3/gl3.h \
  c:\mingw\include\windows.h \
  c:\mingw\lib\gcc\mingw32\6.3.0\include\stdarg.h \
  c:\mingw\include\windef.h c:\mingw\include\w32api.h \
@@ -15,7 +14,32 @@ CMakeFiles/CMP143.dir/src/main.cpp.obj: \
  c:\mingw\include\winuser.h c:\mingw\include\dbt.h \
  c:\mingw\include\winnls.h c:\mingw\include\winver.h \
  c:\mingw\include\winnetwk.h c:\mingw\include\winreg.h \
- c:\mingw\include\winsvc.h \
+ c:\mingw\include\winsvc.h c:\mingw\include\cderr.h \
+ c:\mingw\include\dde.h c:\mingw\include\ddeml.h c:\mingw\include\dlgs.h \
+ c:\mingw\include\imm.h c:\mingw\include\lzexpand.h \
+ c:\mingw\include\mmsystem.h c:\mingw\include\nb30.h \
+ c:\mingw\include\rpc.h c:\mingw\include\windows.h \
+ c:\mingw\include\rpcdce.h c:\mingw\include\basetyps.h \
+ c:\mingw\include\rpcdcep.h c:\mingw\include\rpcnsi.h \
+ c:\mingw\include\rpcnterr.h c:\mingw\include\shellapi.h \
+ c:\mingw\include\pshpack2.h c:\mingw\include\winperf.h \
+ c:\mingw\include\commdlg.h c:\mingw\include\winspool.h \
+ c:\mingw\include\_winsock.h c:\mingw\include\winsock.h \
+ c:\mingw\include\sys\bsdtypes.h c:\mingw\include\sys\time.h \
+ c:\mingw\include\mswsock.h c:\mingw\include\ole2.h \
+ c:\mingw\include\objbase.h c:\mingw\include\rpcndr.h \
+ c:\mingw\include\rpcnsip.h c:\mingw\include\objfwd.h \
+ c:\mingw\lib\gcc\mingw32\6.3.0\include\c++\stdlib.h \
+ c:\mingw\lib\gcc\mingw32\6.3.0\include\c++\cstdlib \
+ c:\mingw\lib\gcc\mingw32\6.3.0\include\c++\mingw32\bits\c++config.h \
+ c:\mingw\lib\gcc\mingw32\6.3.0\include\c++\mingw32\bits\os_defines.h \
+ c:\mingw\lib\gcc\mingw32\6.3.0\include\c++\mingw32\bits\cpu_defines.h \
+ c:\mingw\include\stdlib.h c:\mingw\include\wtypes.h \
+ c:\mingw\include\unknwn.h c:\mingw\include\objidl.h \
+ c:\mingw\include\cguid.h c:\mingw\include\olectlid.h \
+ c:\mingw\include\oleauto.h c:\mingw\include\oaidl.h \
+ c:\mingw\include\oleidl.h \
+ D:/UFRGS/2023-1/Computacao\ Grafica/CMP143/include/GL3/gl3.h \
  c:\mingw\lib\gcc\mingw32\6.3.0\include\stdint.h \
  c:\mingw\include\stdint.h \
  D:/UFRGS/2023-1/Computacao\ Grafica/CMP143/include/GL3/gl3w.h \
@@ -29,9 +53,6 @@ CMakeFiles/CMP143.dir/src/main.cpp.obj: \
  d:\ufrgs\2023-1\computacao\ grafica\cmp143\include\glm\detail\qualifier.hpp \
  d:\ufrgs\2023-1\computacao\ grafica\cmp143\include\glm\detail\setup.hpp \
  c:\mingw\lib\gcc\mingw32\6.3.0\include\c++\cassert \
- c:\mingw\lib\gcc\mingw32\6.3.0\include\c++\mingw32\bits\c++config.h \
- c:\mingw\lib\gcc\mingw32\6.3.0\include\c++\mingw32\bits\os_defines.h \
- c:\mingw\lib\gcc\mingw32\6.3.0\include\c++\mingw32\bits\cpu_defines.h \
  c:\mingw\include\assert.h \
  c:\mingw\lib\gcc\mingw32\6.3.0\include\c++\cstddef \
  d:\ufrgs\2023-1\computacao\ grafica\cmp143\include\glm\simd\platform.h \
@@ -272,8 +293,6 @@ CMakeFiles/CMP143.dir/src/main.cpp.obj: \
  c:\mingw\lib\gcc\mingw32\6.3.0\include\c++\ext\alloc_traits.h \
  c:\mingw\lib\gcc\mingw32\6.3.0\include\c++\bits\alloc_traits.h \
  c:\mingw\lib\gcc\mingw32\6.3.0\include\c++\ext\string_conversions.h \
- c:\mingw\lib\gcc\mingw32\6.3.0\include\c++\cstdlib \
- c:\mingw\include\stdlib.h \
  c:\mingw\lib\gcc\mingw32\6.3.0\include\c++\cstdio \
  c:\mingw\include\stdio.h \
  c:\mingw\lib\gcc\mingw32\6.3.0\include\c++\cerrno \
@@ -322,11 +341,6 @@ CMakeFiles/CMP143.dir/src/main.cpp.obj: \
  c:\mingw\lib\gcc\mingw32\6.3.0\include\c++\bits\vector.tcc \
  c:\mingw\lib\gcc\mingw32\6.3.0\include\c++\math.h \
  c:\mingw\lib\gcc\mingw32\6.3.0\include\float.h c:\mingw\include\float.h \
- D:/UFRGS/2023-1/Computacao\ Grafica/CMP143/include/matrices.h \
- c:\mingw\include\windows.h c:\mingw\include\commdlg.h \
- c:\mingw\include\unknwn.h c:\mingw\include\objfwd.h \
- c:\mingw\include\basetyps.h c:\mingw\include\wtypes.h \
- c:\mingw\include\rpc.h c:\mingw\include\rpcdce.h \
- c:\mingw\include\rpcdcep.h c:\mingw\include\rpcnsi.h \
- c:\mingw\include\rpcnterr.h c:\mingw\include\rpcndr.h \
- c:\mingw\include\rpcnsip.h c:\mingw\include\prsht.h
+ D:/UFRGS/2023-1/Computacao\ Grafica/CMP143/include/stb_image.h \
+ c:\mingw\include\limits.h \
+ D:/UFRGS/2023-1/Computacao\ Grafica/CMP143/include/matrices.h

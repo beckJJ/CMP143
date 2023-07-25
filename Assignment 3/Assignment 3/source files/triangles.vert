@@ -13,7 +13,6 @@ uniform mat4 projectionMatrix;
 uniform vec4 lightPos;
 
 uniform bool useClose2GL;
-uniform bool useTexture;
 uniform int vertexShaderType;
 
 #define NO_SHADER   0
@@ -97,7 +96,6 @@ void main()
         texCoords = texture_coefficients;
 	} else {
 		gl_Position = openGLCoords();
-        texCoords = texture_coefficients;
         switch(vertexShaderType) {
           case NO_SHADER: 
             fragColor = noVertexShader();

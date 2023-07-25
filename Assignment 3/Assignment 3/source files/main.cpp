@@ -1,19 +1,6 @@
-#ifndef _WIN32_WINNT
-#define _WIN32_WINNT _NT_TARGET_VERSION_VISTA
-#endif
-#ifndef WINVER
-#define WINVER _NT_TARGET_VERSION_VISTA
-#endif
-
-#include <Windows.h>
-#include <sdkddkver.h>
-#include <commdlg.h>
-
 #include <GL3/gl3.h>
 #include <GL3/gl3w.h>
-
 #include <GLFW/glfw3.h>
-
 #include <glm/mat4x4.hpp>
 #include <glm/vec3.hpp>
 #include <glm/vec4.hpp>
@@ -29,11 +16,19 @@
 #include <math.h>
 #include <float.h>
 
-#define STB_IMAGE_IMPLEMENTATION
-#include <stb_image.h>
-
 #include "matrices.h"
 
+#include <Windows.h>
+#include <sdkddkver.h>
+#include <commdlg.h>
+
+#ifndef _WIN32_WINNT
+#define _WIN32_WINNT _NT_TARGET_VERSION_VISTA
+#endif
+
+#ifndef WINVER
+#define WINVER _NT_TARGET_VERSION_VISTA
+#endif
 
 // Windows procedures
 #define PROC_INFO_MENU 1
@@ -55,24 +50,14 @@
 #define PROC_GOURAUD_AD 16
 #define PROC_GOURAUD_ADS 17
 #define PROC_PHONG 18
-#define PROC_OPEN_TEXTURE 19
-#define PROC_TEXTURE 20
 
 #define BUFFER_SIZE 100
-
-#define MODEL_FILE 0
-#define TEXTURE_FILE 1
-
-#define CH_R 0
-#define CH_G 1
-#define CH_B 2
 
 
 struct TriangleVertex {
     glm::vec3 pos;
     glm::vec3 normal;
     glm::vec3 color;
-    glm::vec2 texture;
 };
 
 struct Triangle {
@@ -91,13 +76,6 @@ struct ModelObject {
     glm::vec3 *specular_color;
     float     *material_shine;
     Triangle  *triangles;
-};
-
-struct TextureObject {
-    unsigned char *textureData;
-    int            height;
-    int            width;
-    int            channels;
 };
 
 struct SceneObject {
@@ -123,18 +101,10 @@ struct ColorBuffer {
     ScreenPixel *pixels;
 };
 
-inline int getIndexColorBuffer(ColorBuffer buffer, int i, int j)
+inline int get_index(ColorBuffer buffer, int i, int j)
 {
     return (i + (j * buffer.width));
 }
-
-int getIndexTexture(TextureObject texture, float tx, float ty, int ch)
-{   // ch 0 = r, 1 = g, 2 = b
-    int x = tx * (texture.width-1);
-    int y = ty * (texture.height-1);
-    return (ch + (texture.channels * (x + y*texture.width))); // if it's wrong then it might be x*texture.height instead
-}
-
 
 // global variables
 std::map<const char*, SceneObject> g_VirtualScene;
@@ -166,7 +136,6 @@ bool g_ToggleWireframe = false;
 bool g_ToggleCW        = true; // true = CW, false = CCW
 bool g_ToggleGouraud   = false; // gouraud shading
 bool g_TogglePhong     = false; // phong light
-bool g_ToggleTexture   = false;
 int g_ScreenWidth  = 800;
 int g_ScreenHeight = 600;
 
@@ -177,15 +146,11 @@ glm::mat4 g_ViewMatrix;
 glm::mat4 g_ProjectionMatrix;
 
 char g_ModelFilename[FILENAME_MAX];
-char g_TextureFilename[FILENAME_MAX];
 ModelObject g_Model;
-
-TextureObject g_Texture;
 
 GLFWwindow *g_GLWindow;
 GLuint g_VertexArrayObject_id;
 GLint  g_UseClose2GLLocation;
-GLint  g_UseTextureLocation;
 GLuint g_Texture_id;
 
 GLint g_VertexShaderTypeLocation;
@@ -211,7 +176,6 @@ HWND w_ToggleNoShading  = NULL;
 HWND w_ToggleGouraudAD  = NULL;
 HWND w_ToggleGouraudADS = NULL;
 HWND w_TogglePhong      = NULL;
-HWND w_ToggleTexture    = NULL;
 
 // callback functions
 void ErrorCallback(int error, const char *description);
@@ -221,7 +185,6 @@ void CursorPosCallback(GLFWwindow *window, double xpos, double ypos);
 void FramebufferSizeCallback(GLFWwindow *window, int width, int height);
 
 // shader functions
-void   LoadTextureImage(const char *filename);
 void   LoadTexture(unsigned char *textureData, int width, int height);
 void   LoadShader(const char *filename, GLuint shader_id);
 GLuint LoadShader_Vertex(const char *filename);
@@ -264,7 +227,7 @@ int main( int argc, char** argv )
     HWND hWnd = CreateWindowW(L"WindowClass", L"CMP143",
                         WS_OVERLAPPEDWINDOW | WS_VISIBLE,
                         100, 100,
-                        850, 440,
+                        580, 440,
                         NULL, NULL, NULL, NULL);
     if (!hWnd) {
         return 0;
@@ -321,15 +284,13 @@ int main( int argc, char** argv )
     GLint projectionMatrixLocation = glGetUniformLocation(program_id, "projectionMatrix");
     GLint colorVectorLocation      = glGetUniformLocation(program_id, "colorVector"     );
     GLint textureSamplerLocation   = glGetUniformLocation(program_id, "textureSampler"  );
-    GLint textureC2GLLocation      = glGetUniformLocation(program_id, "textureC2GL"     );
     
     g_VertexShaderTypeLocation   = glGetUniformLocation(program_id, "vertexShaderType");
     g_FragmentShaderTypeLocation = glGetUniformLocation(program_id, "fragmentShaderType");
     g_VertexShaderType   = 0;
     g_FragmentShaderType = 0;
     
-    g_UseClose2GLLocation  = glGetUniformLocation(program_id, "useClose2GL");
-    g_UseTextureLocation   = glGetUniformLocation(program_id, "useTexture");
+    g_UseClose2GLLocation     = glGetUniformLocation(program_id, "useClose2GL");
     g_VertexArrayObject_id = -1;
 
     glFrontFace(GL_CW);
@@ -339,8 +300,7 @@ int main( int argc, char** argv )
     glUniform1i(g_UseClose2GLLocation       , g_UseClose2GL       );
     glUniform1i(g_VertexShaderTypeLocation  , g_VertexShaderType  );
     glUniform1i(g_FragmentShaderTypeLocation, g_FragmentShaderType);
-    glUniform1i(textureC2GLLocation,    (GLuint)0);
-    glUniform1i(textureSamplerLocation, (GLuint)1);
+    glUniform1i(textureSamplerLocation, 0);
     
     //initialize back and front buffers
     g_ColorBuffer.width  = g_ScreenWidth;
@@ -350,7 +310,7 @@ int main( int argc, char** argv )
     std::vector<unsigned char> baseTexture;
     for (int i = 0; i < g_ScreenWidth; i++) {
         for (int j = 0; j < g_ScreenHeight; j++) {
-            int index = getIndexColorBuffer(g_ColorBuffer, i, j);
+            int index = get_index(g_ColorBuffer, i, j);
             g_ColorBuffer.pixels[index].r = 255;
             g_ColorBuffer.pixels[index].g = 255;
             g_ColorBuffer.pixels[index].b = 255;
@@ -522,38 +482,6 @@ void LoadTexture(unsigned char *textureData, int width, int height)
     glBindSampler(0, sampler_id);
 }
 
-void LoadTextureImage(const char *filename)
-{
-    printf("Loading texture \"%s\"...\n", filename);
-    stbi_set_flip_vertically_on_load(true);
-    int width;
-    int height;
-    int channels;
-    g_Texture.textureData = stbi_load(filename, &width, &height, &channels, 3);
-    g_Texture.width       = width;
-    g_Texture.height      = height;
-    g_Texture.channels    = channels;
-    
-    if (g_Texture.textureData == NULL) {
-        printf("Error loading texture\n");
-        std::exit(EXIT_FAILURE);
-    }
-
-    GLuint texture_id;
-    GLuint sampler_id;
-    glGenTextures(1, &texture_id);
-    glGenSamplers(1, &sampler_id);
-
-    glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, texture_id);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, width, height, 0, GL_RGB, GL_UNSIGNED_BYTE, g_Texture.textureData);
-    glGenerateMipmap(GL_TEXTURE_2D);
-    glBindSampler(0, sampler_id);
-
-  //  stbi_image_free(g_Texture.textureData);
-    printf("Texture loaded.\n");
-}
-
 ModelObject ReadModelFile(char *filename)
 {
     ModelObject model;
@@ -568,12 +496,11 @@ ModelObject ReadModelFile(char *filename)
     fscanf(fp, "# triangles = %d\n", &model.num_triangles);
     fscanf(fp, "Material count = %d\n", &model.material_count);
 
-
     model.ambient_color = (glm::vec3*)calloc(model.material_count, sizeof(glm::vec3));
     model.diffuse_color = (glm::vec3*)calloc(model.material_count, sizeof(glm::vec3));
     model.specular_color = (glm::vec3*)calloc(model.material_count, sizeof(glm::vec3));
     model.material_shine = (float*)calloc(model.material_count, sizeof(float));
-    
+
     for (int i = 0; i < model.material_count; i++) {
         fscanf(fp, "ambient color %f %f %f\n",  &model.ambient_color[i].x,
                                                 &model.ambient_color[i].y,
@@ -586,8 +513,6 @@ ModelObject ReadModelFile(char *filename)
                                                 &model.specular_color[i].z);
         fscanf(fp, "material shine %f\n", &model.material_shine[i]);
     }
-    char textureType[10] = { 0 };
-    fscanf(fp, "Texture = %s\n", textureType);
     char ch;
     while (ch != '\n') {
         fscanf(fp, "%c", &ch);
@@ -597,50 +522,38 @@ ModelObject ReadModelFile(char *filename)
 
     for (int i = 0; i < model.num_triangles; i++) {
         int color_index;
-        if (strcmp(textureType, "NO") == 0) {
-            fscanf(fp, "v0 %f %f %f %f %f %f %d\n",
-                    &model.triangles[i].v0.pos.x,    &model.triangles[i].v0.pos.y,    &model.triangles[i].v0.pos.z,
-                    &model.triangles[i].v0.normal.x, &model.triangles[i].v0.normal.y, &model.triangles[i].v0.normal.z,
-                    &color_index);
-        } else if (strcmp(textureType, "YES") == 0) {
-            fscanf(fp, "v0 %f %f %f %f %f %f %d %f %f\n",
-                    &model.triangles[i].v0.pos.x,    &model.triangles[i].v0.pos.y,    &model.triangles[i].v0.pos.z,
-                    &model.triangles[i].v0.normal.x, &model.triangles[i].v0.normal.y, &model.triangles[i].v0.normal.z,
-                    &color_index,
-                    &model.triangles[i].v0.texture.x,&model.triangles[i].v0.texture.y);
-        }
+        fscanf(fp, "v0 %f %f %f %f %f %f %d\n",
+                &model.triangles[i].v0.pos.x,
+                &model.triangles[i].v0.pos.y,
+                &model.triangles[i].v0.pos.z,
+                &model.triangles[i].v0.normal.x,
+                &model.triangles[i].v0.normal.y,
+                &model.triangles[i].v0.normal.z,
+                &color_index);
         model.triangles[i].v0.color.x = (unsigned char)(int)(255*(model.diffuse_color[color_index].x));
         model.triangles[i].v0.color.y = (unsigned char)(int)(255*(model.diffuse_color[color_index].y));
         model.triangles[i].v0.color.z = (unsigned char)(int)(255*(model.diffuse_color[color_index].z));
 
-        if (strcmp(textureType, "NO") == 0) {
-            fscanf(fp, "v1 %f %f %f %f %f %f %d\n",
-                    &model.triangles[i].v1.pos.x,    &model.triangles[i].v1.pos.y,    &model.triangles[i].v1.pos.z,
-                    &model.triangles[i].v1.normal.x, &model.triangles[i].v1.normal.y, &model.triangles[i].v1.normal.z,
-                    &color_index);
-        } else if (strcmp(textureType, "YES") == 0) {
-            fscanf(fp, "v1 %f %f %f %f %f %f %d %f %f\n",
-                    &model.triangles[i].v1.pos.x,    &model.triangles[i].v1.pos.y,    &model.triangles[i].v1.pos.z,
-                    &model.triangles[i].v1.normal.x, &model.triangles[i].v1.normal.y, &model.triangles[i].v1.normal.z,
-                    &color_index,
-                    &model.triangles[i].v1.texture.x,&model.triangles[i].v1.texture.y);
-        }
+        fscanf(fp, "v1 %f %f %f %f %f %f %d\n",
+                &model.triangles[i].v1.pos.x,
+                &model.triangles[i].v1.pos.y,
+                &model.triangles[i].v1.pos.z,
+                &model.triangles[i].v1.normal.x,
+                &model.triangles[i].v1.normal.y,
+                &model.triangles[i].v1.normal.z,
+                &color_index);
         model.triangles[i].v1.color.x = (unsigned char)(int)(255*(model.diffuse_color[color_index].x));
         model.triangles[i].v1.color.y = (unsigned char)(int)(255*(model.diffuse_color[color_index].y));
         model.triangles[i].v1.color.z = (unsigned char)(int)(255*(model.diffuse_color[color_index].z));
 
-        if (strcmp(textureType, "NO") == 0) {
-            fscanf(fp, "v2 %f %f %f %f %f %f %d\n",
-                    &model.triangles[i].v2.pos.x,    &model.triangles[i].v2.pos.y,    &model.triangles[i].v2.pos.z,
-                    &model.triangles[i].v2.normal.x, &model.triangles[i].v2.normal.y, &model.triangles[i].v2.normal.z,
-                    &color_index);
-        } else if (strcmp(textureType, "YES") == 0) {
-            fscanf(fp, "v2 %f %f %f %f %f %f %d %f %f\n",
-                    &model.triangles[i].v2.pos.x,    &model.triangles[i].v2.pos.y,    &model.triangles[i].v2.pos.z,
-                    &model.triangles[i].v2.normal.x, &model.triangles[i].v2.normal.y, &model.triangles[i].v2.normal.z,
-                    &color_index,
-                    &model.triangles[i].v2.texture.x,&model.triangles[i].v2.texture.y);
-        }
+        fscanf(fp, "v2 %f %f %f %f %f %f %d\n",
+                &model.triangles[i].v2.pos.x,
+                &model.triangles[i].v2.pos.y,
+                &model.triangles[i].v2.pos.z,
+                &model.triangles[i].v2.normal.x,
+                &model.triangles[i].v2.normal.y,
+                &model.triangles[i].v2.normal.z,
+                &color_index);
         model.triangles[i].v2.color.x = (unsigned char)(int)(255*(model.diffuse_color[color_index].x));
         model.triangles[i].v2.color.y = (unsigned char)(int)(255*(model.diffuse_color[color_index].y));
         model.triangles[i].v2.color.z = (unsigned char)(int)(255*(model.diffuse_color[color_index].z));	
@@ -655,7 +568,7 @@ ModelObject ReadModelFile(char *filename)
     return model;
 }
 
-void DrawTriangle(glm::vec4 v1, glm::vec4 v2, glm::vec4 v3, glm::vec3 c1, glm::vec3 c2, glm::vec3 c3, glm::vec2 t1, glm::vec2 t2, glm::vec2 t3)
+void DrawTriangle(glm::vec4 v1, glm::vec4 v2, glm::vec4 v3, glm::vec3 c1, glm::vec3 c2, glm::vec3 c3)
 {
     bool change = false;
     // verificar se os três vertices estão dentro da tela
@@ -666,106 +579,57 @@ void DrawTriangle(glm::vec4 v1, glm::vec4 v2, glm::vec4 v3, glm::vec3 c1, glm::v
     }
     
     if (g_TogglePoints) {
-        int index = getIndexColorBuffer(g_ColorBuffer, floor(v1.x), floor(v1.y));
+        int index = get_index(g_ColorBuffer, floor(v1.x), floor(v1.y));
         if (v1.z < g_ColorBuffer.pixels[index].z) {
-            if (g_ToggleTexture) {
-                g_ColorBuffer.pixels[index].r = g_Texture.textureData[getIndexTexture(g_Texture, t1.x, t1.y, CH_R)];
-                g_ColorBuffer.pixels[index].g = g_Texture.textureData[getIndexTexture(g_Texture, t1.x, t1.y, CH_G)];
-                g_ColorBuffer.pixels[index].b = g_Texture.textureData[getIndexTexture(g_Texture, t1.x, t1.y, CH_B)];
-                g_ColorBuffer.pixels[index].a = 255;
-                g_ColorBuffer.pixels[index].z = v1.z;
-            } else {
-                g_ColorBuffer.pixels[index].r = g_Red   * 255;
-                g_ColorBuffer.pixels[index].g = g_Green * 255;
-                g_ColorBuffer.pixels[index].b = g_Blue  * 255;
-                g_ColorBuffer.pixels[index].a = 255;
-                g_ColorBuffer.pixels[index].z = v1.z;
-            }
+            g_ColorBuffer.pixels[index].r = g_Red   * 255;
+            g_ColorBuffer.pixels[index].g = g_Green * 255;
+            g_ColorBuffer.pixels[index].b = g_Blue  * 255;
+            g_ColorBuffer.pixels[index].a = 255;
+            g_ColorBuffer.pixels[index].z = v1.z;
         }
-        index = getIndexColorBuffer(g_ColorBuffer, floor(v2.x), floor(v2.y));
+        index = get_index(g_ColorBuffer, floor(v2.x), floor(v2.y));
         if (v2.z < g_ColorBuffer.pixels[index].z) {
-            if (g_ToggleTexture) {
-                g_ColorBuffer.pixels[index].r = g_Texture.textureData[getIndexTexture(g_Texture, t2.x, t2.y, CH_R)];
-                g_ColorBuffer.pixels[index].g = g_Texture.textureData[getIndexTexture(g_Texture, t2.x, t2.y, CH_G)];
-                g_ColorBuffer.pixels[index].b = g_Texture.textureData[getIndexTexture(g_Texture, t2.x, t2.y, CH_B)];
-                g_ColorBuffer.pixels[index].a = 255;
-                g_ColorBuffer.pixels[index].z = v2.z;
-            } else {
-                g_ColorBuffer.pixels[index].r = g_Red   * 255;
-                g_ColorBuffer.pixels[index].g = g_Green * 255;
-                g_ColorBuffer.pixels[index].b = g_Blue  * 255;
-                g_ColorBuffer.pixels[index].a = 255;
-                g_ColorBuffer.pixels[index].z = v2.z;
-            }
+            g_ColorBuffer.pixels[index].r = g_Red   * 255;
+            g_ColorBuffer.pixels[index].g = g_Green * 255;
+            g_ColorBuffer.pixels[index].b = g_Blue  * 255;
+            g_ColorBuffer.pixels[index].a = 255;
+            g_ColorBuffer.pixels[index].z = v2.z;
         }
-        index = getIndexColorBuffer(g_ColorBuffer, floor(v3.x), floor(v3.y));
+        index = get_index(g_ColorBuffer, floor(v3.x), floor(v3.y));
         if (v3.z < g_ColorBuffer.pixels[index].z) {
-            if (g_ToggleTexture) {
-                g_ColorBuffer.pixels[index].r = g_Texture.textureData[getIndexTexture(g_Texture, t3.x, t3.y, CH_R)];
-                g_ColorBuffer.pixels[index].g = g_Texture.textureData[getIndexTexture(g_Texture, t3.x, t3.y, CH_G)];
-                g_ColorBuffer.pixels[index].b = g_Texture.textureData[getIndexTexture(g_Texture, t3.x, t3.y, CH_B)];
-                g_ColorBuffer.pixels[index].a = 255;
-                g_ColorBuffer.pixels[index].z = v3.z;
-            } else {
-                g_ColorBuffer.pixels[index].r = g_Red   * 255;
-                g_ColorBuffer.pixels[index].g = g_Green * 255;
-                g_ColorBuffer.pixels[index].b = g_Blue  * 255;
-                g_ColorBuffer.pixels[index].a = 255;
-                g_ColorBuffer.pixels[index].z = v3.z;
-            }
+            g_ColorBuffer.pixels[index].r = g_Red   * 255;
+            g_ColorBuffer.pixels[index].g = g_Green * 255;
+            g_ColorBuffer.pixels[index].b = g_Blue  * 255;
+            g_ColorBuffer.pixels[index].a = 255;
+            g_ColorBuffer.pixels[index].z = v3.z;
         }
         return;
     }
     
     // desenhar primeiro os vertices
-    int index = getIndexColorBuffer(g_ColorBuffer, floor(v1.x), floor(v1.y));
+    int index = get_index(g_ColorBuffer, floor(v1.x), floor(v1.y));
     if (v1.z < g_ColorBuffer.pixels[index].z) {
-        if (g_ToggleTexture) {
-            printf("COR: %d\n", g_Texture.textureData[getIndexTexture(g_Texture, t1.x, t1.y, CH_R)]);
-            g_ColorBuffer.pixels[index].r = g_Texture.textureData[getIndexTexture(g_Texture, t1.x, t1.y, CH_R)];
-            g_ColorBuffer.pixels[index].g = g_Texture.textureData[getIndexTexture(g_Texture, t1.x, t1.y, CH_G)];
-            g_ColorBuffer.pixels[index].b = g_Texture.textureData[getIndexTexture(g_Texture, t1.x, t1.y, CH_B)];
-            g_ColorBuffer.pixels[index].a = 255;
-            g_ColorBuffer.pixels[index].z = v1.z;
-        } else {
-            g_ColorBuffer.pixels[index].r = c1.x * 255;
-            g_ColorBuffer.pixels[index].g = c1.y * 255;
-            g_ColorBuffer.pixels[index].b = c1.z * 255;
-            g_ColorBuffer.pixels[index].a = 255;
-            g_ColorBuffer.pixels[index].z = v1.z;
-        }
+        g_ColorBuffer.pixels[index].r = c1.x * 255;
+        g_ColorBuffer.pixels[index].g = c1.y * 255;
+        g_ColorBuffer.pixels[index].b = c1.z * 255;
+        g_ColorBuffer.pixels[index].a = 255;
+        g_ColorBuffer.pixels[index].z = v1.z;
     }
-    index = getIndexColorBuffer(g_ColorBuffer, floor(v2.x), floor(v2.y));
+    index = get_index(g_ColorBuffer, floor(v2.x), floor(v2.y));
     if (v2.z < g_ColorBuffer.pixels[index].z) {
-        if (g_ToggleTexture) {
-            g_ColorBuffer.pixels[index].r = g_Texture.textureData[getIndexTexture(g_Texture, t2.x, t2.y, CH_R)];
-            g_ColorBuffer.pixels[index].g = g_Texture.textureData[getIndexTexture(g_Texture, t2.x, t2.y, CH_G)];
-            g_ColorBuffer.pixels[index].b = g_Texture.textureData[getIndexTexture(g_Texture, t2.x, t2.y, CH_B)];
-            g_ColorBuffer.pixels[index].a = 255;
-            g_ColorBuffer.pixels[index].z = v2.z;
-        } else {
-            g_ColorBuffer.pixels[index].r = c2.x * 255;
-            g_ColorBuffer.pixels[index].g = c2.y * 255;
-            g_ColorBuffer.pixels[index].b = c2.z * 255;
-            g_ColorBuffer.pixels[index].a = 255;
-            g_ColorBuffer.pixels[index].z = v2.z;
-        }
+        g_ColorBuffer.pixels[index].r = c2.x * 255;
+        g_ColorBuffer.pixels[index].g = c2.y * 255;
+        g_ColorBuffer.pixels[index].b = c2.z * 255;
+        g_ColorBuffer.pixels[index].a = 255;
+        g_ColorBuffer.pixels[index].z = v2.z;
     }
-    index = getIndexColorBuffer(g_ColorBuffer, floor(v3.x), floor(v3.y));
+    index = get_index(g_ColorBuffer, floor(v3.x), floor(v3.y));
     if (v3.z < g_ColorBuffer.pixels[index].z) {
-        if (g_ToggleTexture) {
-            g_ColorBuffer.pixels[index].r = g_Texture.textureData[getIndexTexture(g_Texture, t3.x, t3.y, CH_R)];
-            g_ColorBuffer.pixels[index].g = g_Texture.textureData[getIndexTexture(g_Texture, t3.x, t3.y, CH_G)];
-            g_ColorBuffer.pixels[index].b = g_Texture.textureData[getIndexTexture(g_Texture, t3.x, t3.y, CH_B)];
-            g_ColorBuffer.pixels[index].a = 255;
-            g_ColorBuffer.pixels[index].z = v3.z;
-        } else {
-            g_ColorBuffer.pixels[index].r = c3.x * 255;
-            g_ColorBuffer.pixels[index].g = c3.y * 255;
-            g_ColorBuffer.pixels[index].b = c3.z * 255;
-            g_ColorBuffer.pixels[index].a = 255;
-            g_ColorBuffer.pixels[index].z = v3.z;
-        }
+        g_ColorBuffer.pixels[index].r = c3.x * 255;
+        g_ColorBuffer.pixels[index].g = c3.y * 255;
+        g_ColorBuffer.pixels[index].b = c3.z * 255;
+        g_ColorBuffer.pixels[index].a = 255;
+        g_ColorBuffer.pixels[index].z = v3.z;
     }
     
     // desenhar as arestas
@@ -827,7 +691,7 @@ void DrawTriangle(glm::vec4 v1, glm::vec4 v2, glm::vec4 v3, glm::vec3 c1, glm::v
             float gstep = (float)(gf - gini)/(float)pxTotal;
             float bstep = (float)(bf - bini)/(float)pxTotal;
             if (g_ToggleWireframe) {
-                index = getIndexColorBuffer(g_ColorBuffer, floor(xini), floor(y0));
+                index = get_index(g_ColorBuffer, floor(xini), floor(y0));
                 if (zini < g_ColorBuffer.pixels[index].z) {
                     g_ColorBuffer.pixels[index].r = rini * 255;
                     g_ColorBuffer.pixels[index].g = gini * 255;
@@ -835,7 +699,7 @@ void DrawTriangle(glm::vec4 v1, glm::vec4 v2, glm::vec4 v3, glm::vec3 c1, glm::v
                     g_ColorBuffer.pixels[index].a = 255;
                     g_ColorBuffer.pixels[index].z = zini;
                 }
-                index = getIndexColorBuffer(g_ColorBuffer, floor(xf), floor(y0));
+                index = get_index(g_ColorBuffer, floor(xf), floor(y0));
                 if (zf < g_ColorBuffer.pixels[index].z) {
                     g_ColorBuffer.pixels[index].r = rf * 255;
                     g_ColorBuffer.pixels[index].g = gf * 255;
@@ -845,7 +709,7 @@ void DrawTriangle(glm::vec4 v1, glm::vec4 v2, glm::vec4 v3, glm::vec3 c1, glm::v
                 }
             } else {
                 for (; xini <= xf; xini++) {
-                    index = getIndexColorBuffer(g_ColorBuffer, floor(xini), floor(y0));
+                    index = get_index(g_ColorBuffer, floor(xini), floor(y0));
                     if (zini < g_ColorBuffer.pixels[index].z) {
                         g_ColorBuffer.pixels[index].r = rini * 255;
                         g_ColorBuffer.pixels[index].g = gini * 255;
@@ -894,7 +758,7 @@ void DrawTriangle(glm::vec4 v1, glm::vec4 v2, glm::vec4 v3, glm::vec3 c1, glm::v
                 float gstep = (float)(gf - gini)/(float)pxTotal;
                 float bstep = (float)(bf - bini)/(float)pxTotal;
                 if (g_ToggleWireframe && !(floor(y0) == floor(v1.y) )) {
-                    index = getIndexColorBuffer(g_ColorBuffer, floor(xini), floor(y0));
+                    index = get_index(g_ColorBuffer, floor(xini), floor(y0));
                     if (zini < g_ColorBuffer.pixels[index].z) {
                         g_ColorBuffer.pixels[index].r = rini * 255;
                         g_ColorBuffer.pixels[index].g = gini * 255;
@@ -902,7 +766,7 @@ void DrawTriangle(glm::vec4 v1, glm::vec4 v2, glm::vec4 v3, glm::vec3 c1, glm::v
                         g_ColorBuffer.pixels[index].a = 255;
                         g_ColorBuffer.pixels[index].z = zini;
                     }
-                    index = getIndexColorBuffer(g_ColorBuffer, floor(xf), floor(y0));
+                    index = get_index(g_ColorBuffer, floor(xf), floor(y0));
                     if (zf < g_ColorBuffer.pixels[index].z) {
                         g_ColorBuffer.pixels[index].r = rf * 255;
                         g_ColorBuffer.pixels[index].g = gf * 255;
@@ -912,7 +776,7 @@ void DrawTriangle(glm::vec4 v1, glm::vec4 v2, glm::vec4 v3, glm::vec3 c1, glm::v
                     }
                 } else {
                     for (; xini <= xf; xini++) {
-                        index = getIndexColorBuffer(g_ColorBuffer, floor(xini), floor(y0));
+                        index = get_index(g_ColorBuffer, floor(xini), floor(y0));
                         if (zini < g_ColorBuffer.pixels[index].z) {
                             g_ColorBuffer.pixels[index].r = rini * 255;
                             g_ColorBuffer.pixels[index].g = gini * 255;
@@ -960,7 +824,7 @@ void DrawTriangle(glm::vec4 v1, glm::vec4 v2, glm::vec4 v3, glm::vec3 c1, glm::v
                 float gstep = (float)(gf - gini)/(float)pxTotal;
                 float bstep = (float)(bf - bini)/(float)pxTotal;
                 if (g_ToggleWireframe) {
-                    index = getIndexColorBuffer(g_ColorBuffer, floor(xini), floor(y0));
+                    index = get_index(g_ColorBuffer, floor(xini), floor(y0));
                     if (zini < g_ColorBuffer.pixels[index].z) {
                         g_ColorBuffer.pixels[index].r = rini * 255;
                         g_ColorBuffer.pixels[index].g = gini * 255;
@@ -968,7 +832,7 @@ void DrawTriangle(glm::vec4 v1, glm::vec4 v2, glm::vec4 v3, glm::vec3 c1, glm::v
                         g_ColorBuffer.pixels[index].a = 255;
                         g_ColorBuffer.pixels[index].z = zini;
                     }
-                    index = getIndexColorBuffer(g_ColorBuffer, floor(xf), floor(y0));
+                    index = get_index(g_ColorBuffer, floor(xf), floor(y0));
                     if (zf < g_ColorBuffer.pixels[index].z) {
                         g_ColorBuffer.pixels[index].r = rf * 255;
                         g_ColorBuffer.pixels[index].g = gf * 255;
@@ -978,7 +842,7 @@ void DrawTriangle(glm::vec4 v1, glm::vec4 v2, glm::vec4 v3, glm::vec3 c1, glm::v
                     }
                 } else {
                     for (; xini <= xf; xini++) {
-                        index = getIndexColorBuffer(g_ColorBuffer, floor(xini), floor(y0));
+                        index = get_index(g_ColorBuffer, floor(xini), floor(y0));
                         if (zini < g_ColorBuffer.pixels[index].z) {
                             g_ColorBuffer.pixels[index].r = rini * 255;
                             g_ColorBuffer.pixels[index].g = gini * 255;
@@ -1027,7 +891,7 @@ void DrawTriangle(glm::vec4 v1, glm::vec4 v2, glm::vec4 v3, glm::vec3 c1, glm::v
                 float gstep = (float)(gf - gini)/(float)pxTotal;
                 float bstep = (float)(bf - bini)/(float)pxTotal;
                 if (g_ToggleWireframe && !(floor(y0) == floor(v1.y))) {
-                    index = getIndexColorBuffer(g_ColorBuffer, floor(xini), floor(y0));
+                    index = get_index(g_ColorBuffer, floor(xini), floor(y0));
                     if (zini < g_ColorBuffer.pixels[index].z) {
                         g_ColorBuffer.pixels[index].r = rini * 255;
                         g_ColorBuffer.pixels[index].g = gini * 255;
@@ -1035,7 +899,7 @@ void DrawTriangle(glm::vec4 v1, glm::vec4 v2, glm::vec4 v3, glm::vec3 c1, glm::v
                         g_ColorBuffer.pixels[index].a = 255;
                         g_ColorBuffer.pixels[index].z = zini;
                     }
-                    index = getIndexColorBuffer(g_ColorBuffer, floor(xf), floor(y0));
+                    index = get_index(g_ColorBuffer, floor(xf), floor(y0));
                     if (zf < g_ColorBuffer.pixels[index].z) {
                         g_ColorBuffer.pixels[index].r = rf * 255;
                         g_ColorBuffer.pixels[index].g = gf * 255;
@@ -1045,7 +909,7 @@ void DrawTriangle(glm::vec4 v1, glm::vec4 v2, glm::vec4 v3, glm::vec3 c1, glm::v
                     }
                 } else {
                     for (; xini <= xf; xini++) {
-                        index = getIndexColorBuffer(g_ColorBuffer, floor(xini), floor(y0));
+                        index = get_index(g_ColorBuffer, floor(xini), floor(y0));
                         if (zini < g_ColorBuffer.pixels[index].z) {
                             g_ColorBuffer.pixels[index].r = rini * 255;
                             g_ColorBuffer.pixels[index].g = gini * 255;
@@ -1093,7 +957,7 @@ void DrawTriangle(glm::vec4 v1, glm::vec4 v2, glm::vec4 v3, glm::vec3 c1, glm::v
                 float gstep = (float)(gf - gini)/(float)pxTotal;
                 float bstep = (float)(bf - bini)/(float)pxTotal;
                 if (g_ToggleWireframe) {
-                    index = getIndexColorBuffer(g_ColorBuffer, floor(xini), floor(y0));
+                    index = get_index(g_ColorBuffer, floor(xini), floor(y0));
                     if (zini < g_ColorBuffer.pixels[index].z) {
                         g_ColorBuffer.pixels[index].r = rini * 255;
                         g_ColorBuffer.pixels[index].g = gini * 255;
@@ -1101,7 +965,7 @@ void DrawTriangle(glm::vec4 v1, glm::vec4 v2, glm::vec4 v3, glm::vec3 c1, glm::v
                         g_ColorBuffer.pixels[index].a = 255;
                         g_ColorBuffer.pixels[index].z = zini;
                     }
-                    index = getIndexColorBuffer(g_ColorBuffer, floor(xf), floor(y0));
+                    index = get_index(g_ColorBuffer, floor(xf), floor(y0));
                     if (zf < g_ColorBuffer.pixels[index].z) {
                         g_ColorBuffer.pixels[index].r = rf * 255;
                         g_ColorBuffer.pixels[index].g = gf * 255;
@@ -1111,7 +975,7 @@ void DrawTriangle(glm::vec4 v1, glm::vec4 v2, glm::vec4 v3, glm::vec3 c1, glm::v
                     }
                 } else {
                     for (; xini <= xf; xini++) {
-                        index = getIndexColorBuffer(g_ColorBuffer, floor(xini), floor(y0));
+                        index = get_index(g_ColorBuffer, floor(xini), floor(y0));
                         if (zini < g_ColorBuffer.pixels[index].z) {
                             g_ColorBuffer.pixels[index].r = rini * 255;
                             g_ColorBuffer.pixels[index].g = gini * 255;
@@ -1152,7 +1016,7 @@ void DrawTriangle(glm::vec4 v1, glm::vec4 v2, glm::vec4 v3, glm::vec3 c1, glm::v
             float gstep = (float)(gf - gini)/(float)pxTotal;
             float bstep = (float)(bf - bini)/(float)pxTotal;
             for (; xini <= xf; xini++) {
-                index = getIndexColorBuffer(g_ColorBuffer, floor(xini), floor(y0));
+                index = get_index(g_ColorBuffer, floor(xini), floor(y0));
                 if (zini < g_ColorBuffer.pixels[index].z) {
                     g_ColorBuffer.pixels[index].r = rini * 255;
                     g_ColorBuffer.pixels[index].g = gini * 255;
@@ -1216,7 +1080,7 @@ void DrawTriangle(glm::vec4 v1, glm::vec4 v2, glm::vec4 v3, glm::vec3 c1, glm::v
             float gstep = (float)(gf - gini)/(float)pxTotal;
             float bstep = (float)(bf - bini)/(float)pxTotal;
             if (g_ToggleWireframe) {
-                index = getIndexColorBuffer(g_ColorBuffer, floor(xini), floor(y0));
+                index = get_index(g_ColorBuffer, floor(xini), floor(y0));
                 if (zini < g_ColorBuffer.pixels[index].z) {
                     g_ColorBuffer.pixels[index].r = rini * 255;
                     g_ColorBuffer.pixels[index].g = gini * 255;
@@ -1224,7 +1088,7 @@ void DrawTriangle(glm::vec4 v1, glm::vec4 v2, glm::vec4 v3, glm::vec3 c1, glm::v
                     g_ColorBuffer.pixels[index].a = 255;
                     g_ColorBuffer.pixels[index].z = zini;
                 }
-                index = getIndexColorBuffer(g_ColorBuffer, floor(xf), floor(y0));
+                index = get_index(g_ColorBuffer, floor(xf), floor(y0));
                 if (zf < g_ColorBuffer.pixels[index].z) {
                     g_ColorBuffer.pixels[index].r = rf * 255;
                     g_ColorBuffer.pixels[index].g = gf * 255;
@@ -1234,7 +1098,7 @@ void DrawTriangle(glm::vec4 v1, glm::vec4 v2, glm::vec4 v3, glm::vec3 c1, glm::v
                 }
             } else {
                 for (; xini <= xf; xini++) {
-                    index = getIndexColorBuffer(g_ColorBuffer, floor(xini), floor(y0));
+                    index = get_index(g_ColorBuffer, floor(xini), floor(y0));
                     if (zini < g_ColorBuffer.pixels[index].z) {
                         g_ColorBuffer.pixels[index].r = rini * 255;
                         g_ColorBuffer.pixels[index].g = gini * 255;
@@ -1283,7 +1147,7 @@ void DrawTriangle(glm::vec4 v1, glm::vec4 v2, glm::vec4 v3, glm::vec3 c1, glm::v
                 float gstep = (float)(gf - gini)/(float)pxTotal;
                 float bstep = (float)(bf - bini)/(float)pxTotal;
                 if (g_ToggleWireframe && !(floor(y0) == floor(v2.y))) {
-                    index = getIndexColorBuffer(g_ColorBuffer, floor(xini), floor(y0));
+                    index = get_index(g_ColorBuffer, floor(xini), floor(y0));
                     if (zini < g_ColorBuffer.pixels[index].z) {
                         g_ColorBuffer.pixels[index].r = rini * 255;
                         g_ColorBuffer.pixels[index].g = gini * 255;
@@ -1291,7 +1155,7 @@ void DrawTriangle(glm::vec4 v1, glm::vec4 v2, glm::vec4 v3, glm::vec3 c1, glm::v
                         g_ColorBuffer.pixels[index].a = 255;
                         g_ColorBuffer.pixels[index].z = zini;
                     }
-                    index = getIndexColorBuffer(g_ColorBuffer, floor(xf), floor(y0));
+                    index = get_index(g_ColorBuffer, floor(xf), floor(y0));
                     if (zf < g_ColorBuffer.pixels[index].z) {
                         g_ColorBuffer.pixels[index].r = rf * 255;
                         g_ColorBuffer.pixels[index].g = gf * 255;
@@ -1301,7 +1165,7 @@ void DrawTriangle(glm::vec4 v1, glm::vec4 v2, glm::vec4 v3, glm::vec3 c1, glm::v
                     }
                 } else {
                     for (; xini <= xf; xini++) {
-                        index = getIndexColorBuffer(g_ColorBuffer, floor(xini), floor(y0));
+                        index = get_index(g_ColorBuffer, floor(xini), floor(y0));
                         if (zini < g_ColorBuffer.pixels[index].z) {
                             g_ColorBuffer.pixels[index].r = rini * 255;
                             g_ColorBuffer.pixels[index].g = gini * 255;
@@ -1349,7 +1213,7 @@ void DrawTriangle(glm::vec4 v1, glm::vec4 v2, glm::vec4 v3, glm::vec3 c1, glm::v
                 float gstep = (float)(gf - gini)/(float)pxTotal;
                 float bstep = (float)(bf - bini)/(float)pxTotal;
                 if (g_ToggleWireframe) {
-                    index = getIndexColorBuffer(g_ColorBuffer, floor(xini), floor(y0));
+                    index = get_index(g_ColorBuffer, floor(xini), floor(y0));
                     if (zini < g_ColorBuffer.pixels[index].z) {
                         g_ColorBuffer.pixels[index].r = rini * 255;
                         g_ColorBuffer.pixels[index].g = gini * 255;
@@ -1357,7 +1221,7 @@ void DrawTriangle(glm::vec4 v1, glm::vec4 v2, glm::vec4 v3, glm::vec3 c1, glm::v
                         g_ColorBuffer.pixels[index].a = 255;
                         g_ColorBuffer.pixels[index].z = zini;
                     }
-                    index = getIndexColorBuffer(g_ColorBuffer, floor(xf), floor(y0));
+                    index = get_index(g_ColorBuffer, floor(xf), floor(y0));
                     if (zf < g_ColorBuffer.pixels[index].z) {
                         g_ColorBuffer.pixels[index].r = rf * 255;
                         g_ColorBuffer.pixels[index].g = gf * 255;
@@ -1367,7 +1231,7 @@ void DrawTriangle(glm::vec4 v1, glm::vec4 v2, glm::vec4 v3, glm::vec3 c1, glm::v
                     }
                 } else {
                     for (; xini <= xf; xini++) {
-                        index = getIndexColorBuffer(g_ColorBuffer, floor(xini), floor(y0));
+                        index = get_index(g_ColorBuffer, floor(xini), floor(y0));
                         if (zini < g_ColorBuffer.pixels[index].z) {
                             g_ColorBuffer.pixels[index].r = rini * 255;
                             g_ColorBuffer.pixels[index].g = gini * 255;
@@ -1417,7 +1281,7 @@ void DrawTriangle(glm::vec4 v1, glm::vec4 v2, glm::vec4 v3, glm::vec3 c1, glm::v
                 float gstep = (float)(gf - gini)/(float)pxTotal;
                 float bstep = (float)(bf - bini)/(float)pxTotal;
                 if (g_ToggleWireframe && !(floor(y0) == floor(v2.y))) {
-                    index = getIndexColorBuffer(g_ColorBuffer, floor(xini), floor(y0));
+                    index = get_index(g_ColorBuffer, floor(xini), floor(y0));
                     if (zini < g_ColorBuffer.pixels[index].z) {
                         g_ColorBuffer.pixels[index].r = rini * 255;
                         g_ColorBuffer.pixels[index].g = gini * 255;
@@ -1425,7 +1289,7 @@ void DrawTriangle(glm::vec4 v1, glm::vec4 v2, glm::vec4 v3, glm::vec3 c1, glm::v
                         g_ColorBuffer.pixels[index].a = 255;
                         g_ColorBuffer.pixels[index].z = zini;
                     }
-                    index = getIndexColorBuffer(g_ColorBuffer, floor(xf), floor(y0));
+                    index = get_index(g_ColorBuffer, floor(xf), floor(y0));
                     if (zf < g_ColorBuffer.pixels[index].z) {
                         g_ColorBuffer.pixels[index].r = rf * 255;
                         g_ColorBuffer.pixels[index].g = gf * 255;
@@ -1435,7 +1299,7 @@ void DrawTriangle(glm::vec4 v1, glm::vec4 v2, glm::vec4 v3, glm::vec3 c1, glm::v
                     }
                 } else {
                     for (; xini <= xf; xini++) {
-                        index = getIndexColorBuffer(g_ColorBuffer, floor(xini), floor(y0));
+                        index = get_index(g_ColorBuffer, floor(xini), floor(y0));
                         if (zini < g_ColorBuffer.pixels[index].z) {
                             g_ColorBuffer.pixels[index].r = rini * 255;
                             g_ColorBuffer.pixels[index].g = gini * 255;
@@ -1483,7 +1347,7 @@ void DrawTriangle(glm::vec4 v1, glm::vec4 v2, glm::vec4 v3, glm::vec3 c1, glm::v
                 float gstep = (float)(gf - gini)/(float)pxTotal;
                 float bstep = (float)(bf - bini)/(float)pxTotal;
                 if (g_ToggleWireframe) {
-                    index = getIndexColorBuffer(g_ColorBuffer, floor(xini), floor(y0));
+                    index = get_index(g_ColorBuffer, floor(xini), floor(y0));
                     if (zini < g_ColorBuffer.pixels[index].z) {
                         g_ColorBuffer.pixels[index].r = rini * 255;
                         g_ColorBuffer.pixels[index].g = gini * 255;
@@ -1491,7 +1355,7 @@ void DrawTriangle(glm::vec4 v1, glm::vec4 v2, glm::vec4 v3, glm::vec3 c1, glm::v
                         g_ColorBuffer.pixels[index].a = 255;
                         g_ColorBuffer.pixels[index].z = zini;
                     }
-                    index = getIndexColorBuffer(g_ColorBuffer, floor(xf), floor(y0));
+                    index = get_index(g_ColorBuffer, floor(xf), floor(y0));
                     if (zf < g_ColorBuffer.pixels[index].z) {
                         g_ColorBuffer.pixels[index].r = rf * 255;
                         g_ColorBuffer.pixels[index].g = gf * 255;
@@ -1501,7 +1365,7 @@ void DrawTriangle(glm::vec4 v1, glm::vec4 v2, glm::vec4 v3, glm::vec3 c1, glm::v
                     }
                 } else {
                     for (; xini <= xf; xini++) {
-                        index = getIndexColorBuffer(g_ColorBuffer, floor(xini), floor(y0));
+                        index = get_index(g_ColorBuffer, floor(xini), floor(y0));
                         if (zini < g_ColorBuffer.pixels[index].z) {
                             g_ColorBuffer.pixels[index].r = rini * 255;
                             g_ColorBuffer.pixels[index].g = gini * 255;
@@ -1542,7 +1406,7 @@ void DrawTriangle(glm::vec4 v1, glm::vec4 v2, glm::vec4 v3, glm::vec3 c1, glm::v
             float gstep = (float)(gf - gini)/(float)pxTotal;
             float bstep = (float)(bf - bini)/(float)pxTotal;
             for (; xini <= xf; xini++) {
-                index = getIndexColorBuffer(g_ColorBuffer, floor(xini), floor(y0));
+                index = get_index(g_ColorBuffer, floor(xini), floor(y0));
                 if (zini < g_ColorBuffer.pixels[index].z) {
                     g_ColorBuffer.pixels[index].r = rini * 255;
                     g_ColorBuffer.pixels[index].g = gini * 255;
@@ -1606,7 +1470,7 @@ void DrawTriangle(glm::vec4 v1, glm::vec4 v2, glm::vec4 v3, glm::vec3 c1, glm::v
             float gstep = (float)(gf - gini)/(float)pxTotal;
             float bstep = (float)(bf - bini)/(float)pxTotal;
             if (g_ToggleWireframe) {
-                index = getIndexColorBuffer(g_ColorBuffer, floor(xini), floor(y0));
+                index = get_index(g_ColorBuffer, floor(xini), floor(y0));
                 if (zini < g_ColorBuffer.pixels[index].z) {
                     g_ColorBuffer.pixels[index].r = rini * 255;
                     g_ColorBuffer.pixels[index].g = gini * 255;
@@ -1614,7 +1478,7 @@ void DrawTriangle(glm::vec4 v1, glm::vec4 v2, glm::vec4 v3, glm::vec3 c1, glm::v
                     g_ColorBuffer.pixels[index].a = 255;
                     g_ColorBuffer.pixels[index].z = zini;
                 }
-                index = getIndexColorBuffer(g_ColorBuffer, floor(xf), floor(y0));
+                index = get_index(g_ColorBuffer, floor(xf), floor(y0));
                 if (zf < g_ColorBuffer.pixels[index].z) {
                     g_ColorBuffer.pixels[index].r = rf * 255;
                     g_ColorBuffer.pixels[index].g = gf * 255;
@@ -1624,7 +1488,7 @@ void DrawTriangle(glm::vec4 v1, glm::vec4 v2, glm::vec4 v3, glm::vec3 c1, glm::v
                 }
             } else {
                 for (; xini <= xf; xini++) {
-                    index = getIndexColorBuffer(g_ColorBuffer, floor(xini), floor(y0));
+                    index = get_index(g_ColorBuffer, floor(xini), floor(y0));
                     if (zini < g_ColorBuffer.pixels[index].z) {
                         g_ColorBuffer.pixels[index].r = rini * 255;
                         g_ColorBuffer.pixels[index].g = gini * 255;
@@ -1673,7 +1537,7 @@ void DrawTriangle(glm::vec4 v1, glm::vec4 v2, glm::vec4 v3, glm::vec3 c1, glm::v
                 float gstep = (float)(gf - gini)/(float)pxTotal;
                 float bstep = (float)(bf - bini)/(float)pxTotal;
                 if (g_ToggleWireframe && !(floor(y0) == floor(v3.y))) {
-                    index = getIndexColorBuffer(g_ColorBuffer, floor(xini), floor(y0));
+                    index = get_index(g_ColorBuffer, floor(xini), floor(y0));
                     if (zini < g_ColorBuffer.pixels[index].z) {
                         g_ColorBuffer.pixels[index].r = rini * 255;
                         g_ColorBuffer.pixels[index].g = gini * 255;
@@ -1681,7 +1545,7 @@ void DrawTriangle(glm::vec4 v1, glm::vec4 v2, glm::vec4 v3, glm::vec3 c1, glm::v
                         g_ColorBuffer.pixels[index].a = 255;
                         g_ColorBuffer.pixels[index].z = zini;
                     }
-                    index = getIndexColorBuffer(g_ColorBuffer, floor(xf), floor(y0));
+                    index = get_index(g_ColorBuffer, floor(xf), floor(y0));
                     if (zf < g_ColorBuffer.pixels[index].z) {
                         g_ColorBuffer.pixels[index].r = rf * 255;
                         g_ColorBuffer.pixels[index].g = gf * 255;
@@ -1691,7 +1555,7 @@ void DrawTriangle(glm::vec4 v1, glm::vec4 v2, glm::vec4 v3, glm::vec3 c1, glm::v
                     }
                 } else {
                     for (; xini <= xf; xini++) {
-                        index = getIndexColorBuffer(g_ColorBuffer, floor(xini), floor(y0));
+                        index = get_index(g_ColorBuffer, floor(xini), floor(y0));
                         if (zini < g_ColorBuffer.pixels[index].z) {
                             g_ColorBuffer.pixels[index].r = rini * 255;
                             g_ColorBuffer.pixels[index].g = gini * 255;
@@ -1739,7 +1603,7 @@ void DrawTriangle(glm::vec4 v1, glm::vec4 v2, glm::vec4 v3, glm::vec3 c1, glm::v
                 float gstep = (float)(gf - gini)/(float)pxTotal;
                 float bstep = (float)(bf - bini)/(float)pxTotal;
                 if (g_ToggleWireframe) {
-                    index = getIndexColorBuffer(g_ColorBuffer, floor(xini), floor(y0));
+                    index = get_index(g_ColorBuffer, floor(xini), floor(y0));
                     if (zini < g_ColorBuffer.pixels[index].z) {
                         g_ColorBuffer.pixels[index].r = rini * 255;
                         g_ColorBuffer.pixels[index].g = gini * 255;
@@ -1747,7 +1611,7 @@ void DrawTriangle(glm::vec4 v1, glm::vec4 v2, glm::vec4 v3, glm::vec3 c1, glm::v
                         g_ColorBuffer.pixels[index].a = 255;
                         g_ColorBuffer.pixels[index].z = zini;
                     }
-                    index = getIndexColorBuffer(g_ColorBuffer, floor(xf), floor(y0));
+                    index = get_index(g_ColorBuffer, floor(xf), floor(y0));
                     if (zf < g_ColorBuffer.pixels[index].z) {
                         g_ColorBuffer.pixels[index].r = rf * 255;
                         g_ColorBuffer.pixels[index].g = gf * 255;
@@ -1757,7 +1621,7 @@ void DrawTriangle(glm::vec4 v1, glm::vec4 v2, glm::vec4 v3, glm::vec3 c1, glm::v
                     }
                 } else {
                     for (; xini <= xf; xini++) {
-                        index = getIndexColorBuffer(g_ColorBuffer, floor(xini), floor(y0));
+                        index = get_index(g_ColorBuffer, floor(xini), floor(y0));
                         if (zini < g_ColorBuffer.pixels[index].z) {
                             g_ColorBuffer.pixels[index].r = rini * 255;
                             g_ColorBuffer.pixels[index].g = gini * 255;
@@ -1806,7 +1670,7 @@ void DrawTriangle(glm::vec4 v1, glm::vec4 v2, glm::vec4 v3, glm::vec3 c1, glm::v
                 float gstep = (float)(gf - gini)/(float)pxTotal;
                 float bstep = (float)(bf - bini)/(float)pxTotal;
                 if (g_ToggleWireframe && !(floor(y0) == floor(v3.y))) {
-                    index = getIndexColorBuffer(g_ColorBuffer, floor(xini), floor(y0));
+                    index = get_index(g_ColorBuffer, floor(xini), floor(y0));
                     if (zini < g_ColorBuffer.pixels[index].z) {
                         g_ColorBuffer.pixels[index].r = rini * 255;
                         g_ColorBuffer.pixels[index].g = gini * 255;
@@ -1814,7 +1678,7 @@ void DrawTriangle(glm::vec4 v1, glm::vec4 v2, glm::vec4 v3, glm::vec3 c1, glm::v
                         g_ColorBuffer.pixels[index].a = 255;
                         g_ColorBuffer.pixels[index].z = zini;
                     }
-                    index = getIndexColorBuffer(g_ColorBuffer, floor(xf), floor(y0));
+                    index = get_index(g_ColorBuffer, floor(xf), floor(y0));
                     if (zf < g_ColorBuffer.pixels[index].z) {
                         g_ColorBuffer.pixels[index].r = rf * 255;
                         g_ColorBuffer.pixels[index].g = gf * 255;
@@ -1824,7 +1688,7 @@ void DrawTriangle(glm::vec4 v1, glm::vec4 v2, glm::vec4 v3, glm::vec3 c1, glm::v
                     }
                 } else {
                     for (; xini <= xf; xini++) {
-                        index = getIndexColorBuffer(g_ColorBuffer, floor(xini), floor(y0));
+                        index = get_index(g_ColorBuffer, floor(xini), floor(y0));
                         if (zini < g_ColorBuffer.pixels[index].z) {
                             g_ColorBuffer.pixels[index].r = rini * 255;
                             g_ColorBuffer.pixels[index].g = gini * 255;
@@ -1872,7 +1736,7 @@ void DrawTriangle(glm::vec4 v1, glm::vec4 v2, glm::vec4 v3, glm::vec3 c1, glm::v
                 float gstep = (float)(gf - gini)/(float)pxTotal;
                 float bstep = (float)(bf - bini)/(float)pxTotal;
                 if (g_ToggleWireframe) {
-                    index = getIndexColorBuffer(g_ColorBuffer, floor(xini), floor(y0));
+                    index = get_index(g_ColorBuffer, floor(xini), floor(y0));
                     if (zini < g_ColorBuffer.pixels[index].z) {
                         g_ColorBuffer.pixels[index].r = rini * 255;
                         g_ColorBuffer.pixels[index].g = gini * 255;
@@ -1880,7 +1744,7 @@ void DrawTriangle(glm::vec4 v1, glm::vec4 v2, glm::vec4 v3, glm::vec3 c1, glm::v
                         g_ColorBuffer.pixels[index].a = 255;
                         g_ColorBuffer.pixels[index].z = zini;
                     }
-                    index = getIndexColorBuffer(g_ColorBuffer, floor(xf), floor(y0));
+                    index = get_index(g_ColorBuffer, floor(xf), floor(y0));
                     if (zf < g_ColorBuffer.pixels[index].z) {
                         g_ColorBuffer.pixels[index].r = rf * 255;
                         g_ColorBuffer.pixels[index].g = gf * 255;
@@ -1890,7 +1754,7 @@ void DrawTriangle(glm::vec4 v1, glm::vec4 v2, glm::vec4 v3, glm::vec3 c1, glm::v
                     }
                 } else {
                     for (; xini <= xf; xini++) {
-                        index = getIndexColorBuffer(g_ColorBuffer, floor(xini), floor(y0));
+                        index = get_index(g_ColorBuffer, floor(xini), floor(y0));
                         if (zini < g_ColorBuffer.pixels[index].z) {
                             g_ColorBuffer.pixels[index].r = rini * 255;
                             g_ColorBuffer.pixels[index].g = gini * 255;
@@ -1931,7 +1795,7 @@ void DrawTriangle(glm::vec4 v1, glm::vec4 v2, glm::vec4 v3, glm::vec3 c1, glm::v
             float gstep = (float)(gf - gini)/(float)pxTotal;
             float bstep = (float)(bf - bini)/(float)pxTotal;
             for (; xini <= xf; xini++) {
-                index = getIndexColorBuffer(g_ColorBuffer, floor(xini), floor(y0));
+                index = get_index(g_ColorBuffer, floor(xini), floor(y0));
                 if (zini < g_ColorBuffer.pixels[index].z) {
                     g_ColorBuffer.pixels[index].r = rini * 255;
                     g_ColorBuffer.pixels[index].g = gini * 255;
@@ -1957,7 +1821,6 @@ GLuint BuildTriangles(ModelObject model)
     int num_vertices = model.num_triangles * 3;
     std::vector<float> normal_coefficients;
     std::vector<float> model_coefficients;
-    std::vector<float> texture_coefficients;
     for (int i = 0; i < model.num_triangles; i++) {
         Triangle triangle = model.triangles[i];
         // v0
@@ -1969,8 +1832,6 @@ GLuint BuildTriangles(ModelObject model)
         normal_coefficients.push_back(triangle.v0.normal.y);
         normal_coefficients.push_back(triangle.v0.normal.z);
         normal_coefficients.push_back(0.f);
-        texture_coefficients.push_back(triangle.v0.texture.x);
-        texture_coefficients.push_back(triangle.v0.texture.y);
         
         // v1
         model_coefficients.push_back(triangle.v1.pos.x); // X
@@ -1981,8 +1842,6 @@ GLuint BuildTriangles(ModelObject model)
         normal_coefficients.push_back(triangle.v1.normal.y);
         normal_coefficients.push_back(triangle.v1.normal.z);
         normal_coefficients.push_back(0.f);
-        texture_coefficients.push_back(triangle.v1.texture.x);
-        texture_coefficients.push_back(triangle.v1.texture.y);
         
         // v2
         model_coefficients.push_back(triangle.v2.pos.x); // X
@@ -1993,8 +1852,6 @@ GLuint BuildTriangles(ModelObject model)
         normal_coefficients.push_back(triangle.v2.normal.y);
         normal_coefficients.push_back(triangle.v2.normal.z);
         normal_coefficients.push_back(0.f);
-        texture_coefficients.push_back(triangle.v2.texture.x);
-        texture_coefficients.push_back(triangle.v2.texture.y);
 
         min_coord.x = (triangle.v0.pos.x < min_coord.x) ? triangle.v0.pos.x : min_coord.x;
         max_coord.x = (triangle.v0.pos.x > max_coord.x) ? triangle.v0.pos.x : max_coord.x;
@@ -2024,7 +1881,7 @@ GLuint BuildTriangles(ModelObject model)
         g_ColorBuffer.pixels = (ScreenPixel*)calloc(g_ScreenHeight * g_ScreenWidth, sizeof(ScreenPixel));
         for (int i = 0; i < g_ScreenWidth; i++) {
             for (int j = 0; j < g_ScreenHeight; j++) {
-                int index = getIndexColorBuffer(g_ColorBuffer, i, j);
+                int index = get_index(g_ColorBuffer, i, j);
                 g_ColorBuffer.pixels[index].r = 255;
                 g_ColorBuffer.pixels[index].g = 255;
                 g_ColorBuffer.pixels[index].b = 255;
@@ -2035,7 +1892,8 @@ GLuint BuildTriangles(ModelObject model)
         
         GLfloat close2gl_coefficients[num_vertices * 4];
         int clipped_vertices = 0;
-        for (int i = 0, j = 0; i < num_vertices*4; i+=12, j+=6) {
+        int j = 0;
+        for (int i = 0; i < num_vertices*4; i+=12) {
             bool clip_vertices = false;
             // three triangles vertices
             glm::vec4 coords1 = glm::vec4(model_coefficients[i   ],
@@ -2065,19 +1923,7 @@ GLuint BuildTriangles(ModelObject model)
             glm::vec4 normalCoords3 = glm::vec4(normal_coefficients[i+8 ],
                                                 normal_coefficients[i+9 ],
                                                 normal_coefficients[i+10],
-                                                normal_coefficients[i+11]);
-            
-            glm::vec2 textureCoords1;
-            glm::vec2 textureCoords2;
-            glm::vec2 textureCoords3;
-            if (g_ToggleTexture) {
-                textureCoords1 = glm::vec2(texture_coefficients[j  ],
-                                           texture_coefficients[j+1]);
-                textureCoords2 = glm::vec2(texture_coefficients[j+2],
-                                           texture_coefficients[j+3]);
-                textureCoords3 = glm::vec2(texture_coefficients[j+4],
-                                           texture_coefficients[j+5]);
-            }
+                                                normal_coefficients[i+11]);  
             
             coords1 = g_ProjectionMatrix * g_ViewMatrix * g_ModelMatrix * coords1;
             coords2 = g_ProjectionMatrix * g_ViewMatrix * g_ModelMatrix * coords2;
@@ -2178,18 +2024,14 @@ GLuint BuildTriangles(ModelObject model)
                             // cull
                             clipped_vertices += 3;
                         } else {
-                            DrawTriangle(coords1sc     , coords2sc     , coords3sc     , 
-                                         outputColorV1 , outputColorV2 , outputColorV3 , 
-                                         textureCoords1, textureCoords2, textureCoords3);
+                            DrawTriangle(coords1sc, coords2sc, coords3sc, outputColorV1, outputColorV2, outputColorV3);
                         }
                     } else { // counterclockwise
                         if (area > 0) {
                             // cull
                             clipped_vertices += 3;
                         } else {
-                            DrawTriangle(coords1sc     , coords2sc     , coords3sc     , 
-                                         outputColorV1 , outputColorV2 , outputColorV3 , 
-                                         textureCoords1, textureCoords2, textureCoords3);
+                            DrawTriangle(coords1sc, coords2sc, coords3sc, outputColorV1, outputColorV2, outputColorV3);
                         }
                     }
                 }
@@ -2200,10 +2042,10 @@ GLuint BuildTriangles(ModelObject model)
         std::vector<unsigned char> textureData;
         for (int i = 0; i < g_ScreenHeight; i++) {
             for (int j = 0; j < g_ScreenWidth; j++) {
-                textureData.push_back(g_ColorBuffer.pixels[getIndexColorBuffer(g_ColorBuffer, j, i)].r);
-                textureData.push_back(g_ColorBuffer.pixels[getIndexColorBuffer(g_ColorBuffer, j, i)].g);
-                textureData.push_back(g_ColorBuffer.pixels[getIndexColorBuffer(g_ColorBuffer, j, i)].b);
-                textureData.push_back(g_ColorBuffer.pixels[getIndexColorBuffer(g_ColorBuffer, j, i)].a);
+                textureData.push_back(g_ColorBuffer.pixels[get_index(g_ColorBuffer, j, i)].r);
+                textureData.push_back(g_ColorBuffer.pixels[get_index(g_ColorBuffer, j, i)].g);
+                textureData.push_back(g_ColorBuffer.pixels[get_index(g_ColorBuffer, j, i)].b);
+                textureData.push_back(g_ColorBuffer.pixels[get_index(g_ColorBuffer, j, i)].a);
             }
         }
         LoadTexture(textureData.data(), g_ScreenWidth, g_ScreenHeight);
@@ -2335,17 +2177,6 @@ GLuint BuildTriangles(ModelObject model)
         glBufferSubData(GL_ARRAY_BUFFER, 0, normal_coefficients.size() * sizeof(float), normal_coefficients.data());
         location = 2;
         number_of_dimensions = 4;
-        glVertexAttribPointer(location, number_of_dimensions, GL_FLOAT, GL_FALSE, 0, 0);
-        glEnableVertexAttribArray(location);
-        glBindBuffer(GL_ARRAY_BUFFER, 0);
-        
-        GLuint VBO_texture_coefficients_id;
-        glGenBuffers(1, &VBO_texture_coefficients_id);
-        glBindBuffer(GL_ARRAY_BUFFER, VBO_texture_coefficients_id);
-        glBufferData(GL_ARRAY_BUFFER, texture_coefficients.size() * sizeof(float), NULL, GL_STATIC_DRAW);
-        glBufferSubData(GL_ARRAY_BUFFER, 0, texture_coefficients.size() * sizeof(float), texture_coefficients.data());
-        location = 3;
-        number_of_dimensions = 2;
         glVertexAttribPointer(location, number_of_dimensions, GL_FLOAT, GL_FALSE, 0, 0);
         glEnableVertexAttribArray(location);
         glBindBuffer(GL_ARRAY_BUFFER, 0);
@@ -2565,35 +2396,28 @@ GLuint CreateGpuProgram(GLuint vertex_shader_id, GLuint fragment_shader_id)
     return program_id;
 }
 
-int OpenFile(HWND hWnd, char type)
+int OpenFile(HWND hWnd)
 {
     OPENFILENAME ofn;
     ZeroMemory(&ofn, sizeof(OPENFILENAME));
 
     ofn.lStructSize = sizeof(OPENFILENAME);
     ofn.hwndOwner = hWnd;
-    if (type == MODEL_FILE) {
-        ofn.lpstrFile = g_ModelFilename;
-        ofn.lpstrFilter = "Model Files (.in)\0*.IN\0";
-    } else if (type == TEXTURE_FILE) {
-        ofn.lpstrFile = g_TextureFilename;
-        ofn.lpstrFilter = "Texture Files (.jpg, .png, .bmp)\0*.JPG;*.PNG*;.BMP\0";
-    }
+    ofn.lpstrFile = g_ModelFilename;
     ofn.lpstrFile[0] = '\0';
     ofn.nMaxFile = FILENAME_MAX * 2;
+    ofn.lpstrFilter = "Model Files (.in)\0*.IN\0";
     ofn.nFilterIndex = 1;
     ofn.Flags = OFN_FILEMUSTEXIST;
 
     GetOpenFileName(&ofn);
-    
-    if ((type == MODEL_FILE   && !g_ModelFilename[0]) ||
-        (type == TEXTURE_FILE && !g_TextureFilename[0])) {
+
+    if (!g_ModelFilename[0]) {
         return 0;
     }
     
     FILE *file;
-    if ((type == MODEL_FILE   && !(file = fopen(g_ModelFilename, "r"))) ||
-        (type == TEXTURE_FILE && !(file = fopen(g_TextureFilename, "r")))) {
+    if (!(file = fopen(g_ModelFilename, "r"))) {
         MessageBox(NULL, "File not found!", "ERROR", MB_OK);
         return -1;
     }
@@ -2619,7 +2443,7 @@ LRESULT CALLBACK WindowProcedure(HWND hWnd, UINT msg, WPARAM wp, LPARAM lp)
             break;
           }
           case PROC_OPEN_FILE: {
-            if (OpenFile(hWnd, MODEL_FILE)) {
+            if (OpenFile(hWnd)) {
                 FILE *file;
                 if (!(file = fopen(g_ModelFilename, "r"))) {
                     MessageBox(NULL, "Arquivo nao encontrado!", "ERRO", MB_OK);
@@ -2629,16 +2453,6 @@ LRESULT CALLBACK WindowProcedure(HWND hWnd, UINT msg, WPARAM wp, LPARAM lp)
                 g_VertexArrayObject_id = BuildTriangles(g_Model);
             }
             break;
-          }
-          case PROC_OPEN_TEXTURE: {
-            if (OpenFile(hWnd, TEXTURE_FILE)) {
-                FILE *file;
-                if (!(file = fopen(g_TextureFilename, "r"))) {
-                    MessageBox(NULL, "Arquivo nao encontrado!", "ERRO", MB_OK);
-                    return -1;
-                }
-                LoadTextureImage(g_TextureFilename);
-            }
           }
           case PROC_TOGGLE_CW: {
             int checkedState = SendMessageW(w_ToggleCW, BM_GETCHECK, 0, 0);
@@ -2863,16 +2677,6 @@ LRESULT CALLBACK WindowProcedure(HWND hWnd, UINT msg, WPARAM wp, LPARAM lp)
             printf("Phong shading\n");
             break;
           }
-          case PROC_TEXTURE: {
-              SendMessageW(w_ToggleTexture, BM_SETCHECK, !g_ToggleTexture, 0);
-              int checkedState = SendMessageW(w_ToggleTexture, BM_GETCHECK, 0, 0);
-              if (checkedState == BST_CHECKED) {
-                  g_ToggleTexture = true;
-              } else {
-                  g_ToggleTexture = false;
-              }
-              glUniform1i(g_UseTextureLocation, g_ToggleTexture);
-          }
         }
         break;
       }
@@ -2917,7 +2721,7 @@ void AddControls(HWND hWnd)
         (HMENU)PROC_OPEN_FILE, // procedure
         (HINSTANCE)GetWindowLongPtr(hWnd, GWLP_HINSTANCE),
         NULL);
-        
+
     w_ToggleGL = CreateWindowW(
         L"BUTTON",
         L"OPEN GL",
@@ -3207,27 +3011,6 @@ void AddControls(HWND hWnd)
         250, 25,
         hWnd,
         (HMENU)PROC_PHONG,
-        (HINSTANCE)GetWindowLongPtr(hWnd, GWLP_HINSTANCE),
-        NULL);
-        
-    CreateWindowW(
-        L"BUTTON",
-        L"OPEN TEXTURE",
-        WS_TABSTOP | WS_VISIBLE | WS_CHILD | BS_DEFPUSHBUTTON,
-        560, 20,
-        250, 25,
-        hWnd,
-        (HMENU)PROC_OPEN_TEXTURE,
-        (HINSTANCE)GetWindowLongPtr(hWnd, GWLP_HINSTANCE),
-        NULL);
-        
-    w_ToggleTexture = CreateWindowW(
-        L"BUTTON", L"TEXTURE",
-        WS_TABSTOP | WS_VISIBLE | WS_CHILD | BS_CHECKBOX,
-        560, 60,
-        250, 25,
-        hWnd,
-        (HMENU)PROC_TEXTURE, 
         (HINSTANCE)GetWindowLongPtr(hWnd, GWLP_HINSTANCE),
         NULL);
 }

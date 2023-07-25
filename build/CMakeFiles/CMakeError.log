@@ -68,3 +68,38 @@ LINK : fatal error LNK1123: failure during conversion to COFF: file invalid or c
 
 
 
+Detecting C compiler ABI info failed to compile with the following output:
+Change Dir: D:/UFRGS/2023-1/Computacao Grafica/CMP143/build/CMakeFiles/CMakeTmp
+
+Run Build Command(s):C:/Windows/Microsoft.NET/Framework/v4.0.30319/MSBuild.exe cmTC_0ef94.vcxproj /p:Configuration=Debug /p:Platform=Win32 /p:VisualStudioVersion=10.0 /v:m && Microsoft (R) Build Engine version 4.8.3761.0
+[Microsoft .NET Framework, version 4.0.30319.42000]
+Copyright (C) Microsoft Corporation. All rights reserved.
+
+  Microsoft (R) 32-bit C/C++ Optimizing Compiler Version 16.00.30319.01 for 80x86
+  Copyright (C) Microsoft Corporation.  All rights reserved.
+  
+  cl /c /Zi /W3 /WX- /Od /Ob0 /Oy- /D _MBCS /D WIN32 /D _WINDOWS /D "CMAKE_INTDIR=\"Debug\"" /Gm- /RTC1 /MDd /GS /fp:precise /Zc:wchar_t /Zc:forScope /Fo"cmTC_0ef94.dir\Debug\\" /Fd"cmTC_0ef94.dir\Debug\vc100.pdb" /Gd /TC /analyze- /errorReport:queue "C:\Program Files\CMake\share\cmake-3.23\Modules\CMakeCCompilerABI.c"
+  CMakeCCompilerABI.c
+  
+LINK : fatal error LNK1123: failure during conversion to COFF: file invalid or corrupt [D:\UFRGS\2023-1\Computacao Grafica\CMP143\build\CMakeFiles\CMakeTmp\cmTC_0ef94.vcxproj]
+
+
+
+
+Determining if the C compiler works failed with the following output:
+Change Dir: D:/UFRGS/2023-1/Computacao Grafica/CMP143/build/CMakeFiles/CMakeTmp
+
+Run Build Command(s):C:/Windows/Microsoft.NET/Framework/v4.0.30319/MSBuild.exe cmTC_e37a9.vcxproj /p:Configuration=Debug /p:Platform=Win32 /p:VisualStudioVersion=10.0 /v:m && Microsoft (R) Build Engine version 4.8.3761.0
+[Microsoft .NET Framework, version 4.0.30319.42000]
+Copyright (C) Microsoft Corporation. All rights reserved.
+
+  Microsoft (R) 32-bit C/C++ Optimizing Compiler Version 16.00.30319.01 for 80x86
+  Copyright (C) Microsoft Corporation.  All rights reserved.
+  
+  cl /c /Zi /W3 /WX- /Od /Ob0 /Oy- /D _MBCS /D WIN32 /D _WINDOWS /D "CMAKE_INTDIR=\"Debug\"" /Gm- /RTC1 /MDd /GS /fp:precise /Zc:wchar_t /Zc:forScope /Fo"cmTC_e37a9.dir\Debug\\" /Fd"cmTC_e37a9.dir\Debug\vc100.pdb" /Gd /TC /analyze- /errorReport:queue testCCompiler.c
+  
+  testCCompiler.c
+LINK : fatal error LNK1123: failure during conversion to COFF: file invalid or corrupt [D:\UFRGS\2023-1\Computacao Grafica\CMP143\build\CMakeFiles\CMakeTmp\cmTC_e37a9.vcxproj]
+
+
+
