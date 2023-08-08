@@ -57,6 +57,9 @@
 #define PROC_PHONG 18
 #define PROC_OPEN_TEXTURE 19
 #define PROC_TEXTURE 20
+#define PROC_NEAREST_NEIGHBOUR 21
+#define PROC_BILINEAR 22
+#define PROC_MIPMAPPING 23
 
 #define BUFFER_SIZE 100
 
@@ -151,22 +154,25 @@ float g_Blue  = 0.5f;
 float g_hFov  = glm::radians(50.0f);
 float g_vFov  = glm::radians(37.5f);
 bool g_LeftMouseButtonPressed = false;
-bool g_ResetCamera     = false;
-bool g_W_pressed       = false;
-bool g_A_pressed       = false;
-bool g_S_pressed       = false;
-bool g_D_pressed       = false;
-bool g_Q_pressed       = false;
-bool g_Z_pressed       = false;
-bool g_LookAtCamera    = false;
-bool g_UseClose2GL     = false;
-bool g_TogglePoints    = false;
-bool g_ToggleSolid     = true;
-bool g_ToggleWireframe = false;
-bool g_ToggleCW        = true; // true = CW, false = CCW
-bool g_ToggleGouraud   = false; // gouraud shading
-bool g_TogglePhong     = false; // phong light
-bool g_ToggleTexture   = false;
+bool g_ResetCamera      = false;
+bool g_W_pressed        = false;
+bool g_A_pressed        = false;
+bool g_S_pressed        = false;
+bool g_D_pressed        = false;
+bool g_Q_pressed        = false;
+bool g_Z_pressed        = false;
+bool g_LookAtCamera     = false;
+bool g_UseClose2GL      = false;
+bool g_TogglePoints     = false;
+bool g_ToggleSolid      = true;
+bool g_ToggleWireframe  = false;
+bool g_ToggleCW         = true; // true = CW, false = CCW
+bool g_ToggleGouraud    = false; // gouraud shading
+bool g_TogglePhong      = false; // phong light
+bool g_ToggleTexture    = false;
+bool g_ToggleNearest    = true;
+bool g_ToggleLinear     = false;
+bool g_ToggleMipMapping = false;
 int g_ScreenWidth  = 800;
 int g_ScreenHeight = 600;
 
@@ -212,6 +218,9 @@ HWND w_ToggleGouraudAD  = NULL;
 HWND w_ToggleGouraudADS = NULL;
 HWND w_TogglePhong      = NULL;
 HWND w_ToggleTexture    = NULL;
+HWND w_ToggleNearest    = NULL;
+HWND w_ToggleBilinear   = NULL;
+HWND w_ToggleMipMapping = NULL;
 
 // callback functions
 void ErrorCallback(int error, const char *description);
@@ -281,6 +290,7 @@ int main( int argc, char** argv )
     SendMessageW(w_ToggleGL,        BM_SETCHECK, true,           0);
     SendMessageW(w_ToggleSolid,     BM_SETCHECK, true,           0);
     SendMessageW(w_ToggleNoShading, BM_SETCHECK, true,           0);
+    SendMessageW(w_ToggleNearest,   BM_SETCHECK, true,           0);
 
     // initialize openGL
     int success = glfwInit();
@@ -517,6 +527,7 @@ void LoadTexture(unsigned char *textureData, int width, int height)
 
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, texture_id);
+    
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, textureData);
     glGenerateMipmap(GL_TEXTURE_2D);
     glBindSampler(0, sampler_id);
@@ -544,8 +555,27 @@ void LoadTextureImage(const char *filename)
     glGenTextures(1, &texture_id);
     glGenSamplers(1, &sampler_id);
 
+    if (g_ToggleNearest) {
+        printf("Nearest\n");
+        glSamplerParameteri(sampler_id, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+        glSamplerParameteri(sampler_id, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    } else if (g_ToggleLinear) {
+        printf("Bilinear\n");
+        glSamplerParameteri(sampler_id, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+        glSamplerParameteri(sampler_id, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    } else if (g_ToggleMipMapping) {
+        printf("Mip mapping\n");
+        glSamplerParameteri(sampler_id, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+        glSamplerParameteri(sampler_id, GL_TEXTURE_MAG_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+    }
+    glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+    glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
+    glPixelStorei(GL_UNPACK_SKIP_PIXELS, 0);
+    glPixelStorei(GL_UNPACK_SKIP_ROWS, 0);
+
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, texture_id);
+
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, width, height, 0, GL_RGB, GL_UNSIGNED_BYTE, g_Texture.textureData);
     glGenerateMipmap(GL_TEXTURE_2D);
     glBindSampler(0, sampler_id);
@@ -2873,6 +2903,27 @@ LRESULT CALLBACK WindowProcedure(HWND hWnd, UINT msg, WPARAM wp, LPARAM lp)
               }
               glUniform1i(g_UseTextureLocation, g_ToggleTexture);
           }
+          case PROC_NEAREST_NEIGHBOUR: {
+            g_ToggleNearest = true;
+            g_ToggleLinear = false;
+            g_ToggleMipMapping = false;
+            LoadTextureImage(g_TextureFilename);
+            break;
+          }
+          case PROC_BILINEAR: {
+            g_ToggleNearest = false;
+            g_ToggleLinear = true;
+            g_ToggleMipMapping = false;
+            LoadTextureImage(g_TextureFilename);
+            break;
+          }
+          case PROC_MIPMAPPING: {
+            g_ToggleNearest = false;
+            g_ToggleLinear = false;
+            g_ToggleMipMapping = true;
+            LoadTextureImage(g_TextureFilename);
+            break;
+          }
         }
         break;
       }
@@ -3228,6 +3279,37 @@ void AddControls(HWND hWnd)
         250, 25,
         hWnd,
         (HMENU)PROC_TEXTURE, 
+        (HINSTANCE)GetWindowLongPtr(hWnd, GWLP_HINSTANCE),
+        NULL);
+        
+    w_ToggleNearest = CreateWindowW(
+        L"BUTTON",
+        L"NEAREST NEIGHBOUR",
+        WS_CHILD | WS_VISIBLE | BS_AUTORADIOBUTTON | WS_GROUP,
+        560, 100,
+        250, 25,
+        hWnd,
+        (HMENU)PROC_NEAREST_NEIGHBOUR,
+        (HINSTANCE)GetWindowLongPtr(hWnd, GWLP_HINSTANCE),
+        NULL);
+    w_ToggleBilinear = CreateWindowW(
+        L"BUTTON",
+        L"BILINEAR",
+        WS_CHILD | WS_VISIBLE | BS_AUTORADIOBUTTON,
+        560, 140,
+        250, 25,
+        hWnd,
+        (HMENU)PROC_BILINEAR,
+        (HINSTANCE)GetWindowLongPtr(hWnd, GWLP_HINSTANCE),
+        NULL);
+    w_ToggleMipMapping = CreateWindowW(
+        L"BUTTON",
+        L"MIP MAPPING",
+        WS_CHILD | WS_VISIBLE | BS_AUTORADIOBUTTON,
+        560, 180,
+        250, 25,
+        hWnd,
+        (HMENU)PROC_MIPMAPPING,
         (HINSTANCE)GetWindowLongPtr(hWnd, GWLP_HINSTANCE),
         NULL);
 }
