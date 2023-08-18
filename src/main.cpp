@@ -131,11 +131,11 @@ inline int getIndexColorBuffer(ColorBuffer buffer, int i, int j)
     return (i + (j * buffer.width));
 }
 
-int getIndexTexture(TextureObject texture, float tx, float ty, int ch)
+int getIndexTexture(TextureObject texture, float tx, float ty, int ch) // nearest neighbour
 {   // ch 0 = r, 1 = g, 2 = b
-    int x = tx * (texture.width-1);
-    int y = ty * (texture.height-1);
-    return (ch + (texture.channels * (x + y*texture.width))); // if it's wrong then it might be x*texture.height instead
+    int x = round(tx * (texture.width-1));
+    int y = round(ty * (texture.height-1));
+    return (ch + (texture.channels * (x + y*texture.width)));
 }
 
 
@@ -248,6 +248,26 @@ LRESULT CALLBACK WindowProcedure(HWND hWnd, UINT msg, WPARAM wp, LPARAM lp);
 void    AddMenus(HWND hWnd, HMENU hMenu);
 void    AddControls(HWND hWnd);
 int     OpenFile(HWND hWnd);
+
+int getTextureColourBilinear(TextureObject texture, float tx, float ty, int ch)
+{
+    int x0 = floor(tx * (texture.width-1));
+    int x1 = ceil (tx * (texture.width-1));
+    int y0 = floor(ty * (texture.height-1));
+    int y1 = ceil (ty * (texture.height-1));
+    
+    int i0 = (ch + (texture.channels * (x0 + y0*texture.width)));
+    int i1 = (ch + (texture.channels * (x0 + y1*texture.width)));
+    int i2 = (ch + (texture.channels * (x1 + y0*texture.width)));
+    int i3 = (ch + (texture.channels * (x1 + y1*texture.width)));
+    
+    int t0 = g_Texture.textureData[i0];
+    int t1 = g_Texture.textureData[i1];
+    int t2 = g_Texture.textureData[i2];
+    int t3 = g_Texture.textureData[i3];
+    
+    return (t0 + t1 + t2 + t3)/4;
+}
 
 int main( int argc, char** argv )
 {
@@ -699,50 +719,62 @@ void DrawTriangle(glm::vec4 v1, glm::vec4 v2, glm::vec4 v3, glm::vec3 c1, glm::v
         int index = getIndexColorBuffer(g_ColorBuffer, floor(v1.x), floor(v1.y));
         if (v1.z < g_ColorBuffer.pixels[index].z) {
             if (g_ToggleTexture) {
-                g_ColorBuffer.pixels[index].r = g_Texture.textureData[getIndexTexture(g_Texture, t1.x, t1.y, CH_R)];
-                g_ColorBuffer.pixels[index].g = g_Texture.textureData[getIndexTexture(g_Texture, t1.x, t1.y, CH_G)];
-                g_ColorBuffer.pixels[index].b = g_Texture.textureData[getIndexTexture(g_Texture, t1.x, t1.y, CH_B)];
-                g_ColorBuffer.pixels[index].a = 255;
-                g_ColorBuffer.pixels[index].z = v1.z;
+                if (g_ToggleNearest) {
+                    g_ColorBuffer.pixels[index].r = g_Texture.textureData[getIndexTexture(g_Texture, t1.x, t1.y, CH_R)];
+                    g_ColorBuffer.pixels[index].g = g_Texture.textureData[getIndexTexture(g_Texture, t1.x, t1.y, CH_G)];
+                    g_ColorBuffer.pixels[index].b = g_Texture.textureData[getIndexTexture(g_Texture, t1.x, t1.y, CH_B)];
+                } else if (g_ToggleLinear) {
+                    g_ColorBuffer.pixels[index].r = getTextureColourBilinear(g_Texture, t1.x, t1.y, CH_R);
+                    g_ColorBuffer.pixels[index].g = getTextureColourBilinear(g_Texture, t1.x, t1.y, CH_G);
+                    g_ColorBuffer.pixels[index].b = getTextureColourBilinear(g_Texture, t1.x, t1.y, CH_B);
+                }
             } else {
                 g_ColorBuffer.pixels[index].r = g_Red   * 255;
                 g_ColorBuffer.pixels[index].g = g_Green * 255;
                 g_ColorBuffer.pixels[index].b = g_Blue  * 255;
-                g_ColorBuffer.pixels[index].a = 255;
-                g_ColorBuffer.pixels[index].z = v1.z;
             }
+            g_ColorBuffer.pixels[index].a = 255;
+            g_ColorBuffer.pixels[index].z = v1.z;
         }
         index = getIndexColorBuffer(g_ColorBuffer, floor(v2.x), floor(v2.y));
         if (v2.z < g_ColorBuffer.pixels[index].z) {
             if (g_ToggleTexture) {
-                g_ColorBuffer.pixels[index].r = g_Texture.textureData[getIndexTexture(g_Texture, t2.x, t2.y, CH_R)];
-                g_ColorBuffer.pixels[index].g = g_Texture.textureData[getIndexTexture(g_Texture, t2.x, t2.y, CH_G)];
-                g_ColorBuffer.pixels[index].b = g_Texture.textureData[getIndexTexture(g_Texture, t2.x, t2.y, CH_B)];
-                g_ColorBuffer.pixels[index].a = 255;
-                g_ColorBuffer.pixels[index].z = v2.z;
+                if (g_ToggleNearest) {
+                    g_ColorBuffer.pixels[index].r = g_Texture.textureData[getIndexTexture(g_Texture, t2.x, t2.y, CH_R)];
+                    g_ColorBuffer.pixels[index].g = g_Texture.textureData[getIndexTexture(g_Texture, t2.x, t2.y, CH_G)];
+                    g_ColorBuffer.pixels[index].b = g_Texture.textureData[getIndexTexture(g_Texture, t2.x, t2.y, CH_B)];
+                } else if (g_ToggleLinear) {
+                    g_ColorBuffer.pixels[index].r = getTextureColourBilinear(g_Texture, t2.x, t2.y, CH_R);
+                    g_ColorBuffer.pixels[index].g = getTextureColourBilinear(g_Texture, t2.x, t2.y, CH_G);
+                    g_ColorBuffer.pixels[index].b = getTextureColourBilinear(g_Texture, t2.x, t2.y, CH_B);
+                }
             } else {
                 g_ColorBuffer.pixels[index].r = g_Red   * 255;
                 g_ColorBuffer.pixels[index].g = g_Green * 255;
                 g_ColorBuffer.pixels[index].b = g_Blue  * 255;
-                g_ColorBuffer.pixels[index].a = 255;
-                g_ColorBuffer.pixels[index].z = v2.z;
             }
+            g_ColorBuffer.pixels[index].a = 255;
+            g_ColorBuffer.pixels[index].z = v2.z;
         }
         index = getIndexColorBuffer(g_ColorBuffer, floor(v3.x), floor(v3.y));
         if (v3.z < g_ColorBuffer.pixels[index].z) {
             if (g_ToggleTexture) {
-                g_ColorBuffer.pixels[index].r = g_Texture.textureData[getIndexTexture(g_Texture, t3.x, t3.y, CH_R)];
-                g_ColorBuffer.pixels[index].g = g_Texture.textureData[getIndexTexture(g_Texture, t3.x, t3.y, CH_G)];
-                g_ColorBuffer.pixels[index].b = g_Texture.textureData[getIndexTexture(g_Texture, t3.x, t3.y, CH_B)];
-                g_ColorBuffer.pixels[index].a = 255;
-                g_ColorBuffer.pixels[index].z = v3.z;
+                if (g_ToggleNearest) {
+                    g_ColorBuffer.pixels[index].r = g_Texture.textureData[getIndexTexture(g_Texture, t3.x, t3.y, CH_R)];
+                    g_ColorBuffer.pixels[index].g = g_Texture.textureData[getIndexTexture(g_Texture, t3.x, t3.y, CH_G)];
+                    g_ColorBuffer.pixels[index].b = g_Texture.textureData[getIndexTexture(g_Texture, t3.x, t3.y, CH_B)];
+                } else if (g_ToggleLinear) {
+                    g_ColorBuffer.pixels[index].r = getTextureColourBilinear(g_Texture, t3.x, t3.y, CH_R);
+                    g_ColorBuffer.pixels[index].g = getTextureColourBilinear(g_Texture, t3.x, t3.y, CH_G);
+                    g_ColorBuffer.pixels[index].b = getTextureColourBilinear(g_Texture, t3.x, t3.y, CH_B);
+                }
             } else {
                 g_ColorBuffer.pixels[index].r = g_Red   * 255;
                 g_ColorBuffer.pixels[index].g = g_Green * 255;
                 g_ColorBuffer.pixels[index].b = g_Blue  * 255;
-                g_ColorBuffer.pixels[index].a = 255;
-                g_ColorBuffer.pixels[index].z = v3.z;
             }
+            g_ColorBuffer.pixels[index].a = 255;
+            g_ColorBuffer.pixels[index].z = v3.z;
         }
         return;
     }
@@ -751,50 +783,62 @@ void DrawTriangle(glm::vec4 v1, glm::vec4 v2, glm::vec4 v3, glm::vec3 c1, glm::v
     int index = getIndexColorBuffer(g_ColorBuffer, floor(v1.x), floor(v1.y));
     if (v1.z < g_ColorBuffer.pixels[index].z) {
         if (g_ToggleTexture) {
-            g_ColorBuffer.pixels[index].r = g_Texture.textureData[getIndexTexture(g_Texture, t1.x, t1.y, CH_R)];
-            g_ColorBuffer.pixels[index].g = g_Texture.textureData[getIndexTexture(g_Texture, t1.x, t1.y, CH_G)];
-            g_ColorBuffer.pixels[index].b = g_Texture.textureData[getIndexTexture(g_Texture, t1.x, t1.y, CH_B)];
-            g_ColorBuffer.pixels[index].a = 255;
-            g_ColorBuffer.pixels[index].z = v1.z;
+            if (g_ToggleNearest) {
+                g_ColorBuffer.pixels[index].r = g_Texture.textureData[getIndexTexture(g_Texture, t1.x, t1.y, CH_R)];
+                g_ColorBuffer.pixels[index].g = g_Texture.textureData[getIndexTexture(g_Texture, t1.x, t1.y, CH_G)];
+                g_ColorBuffer.pixels[index].b = g_Texture.textureData[getIndexTexture(g_Texture, t1.x, t1.y, CH_B)];
+            } else if (g_ToggleLinear) {
+                g_ColorBuffer.pixels[index].r = getTextureColourBilinear(g_Texture, t1.x, t1.y, CH_R);
+                g_ColorBuffer.pixels[index].g = getTextureColourBilinear(g_Texture, t1.x, t1.y, CH_G);
+                g_ColorBuffer.pixels[index].b = getTextureColourBilinear(g_Texture, t1.x, t1.y, CH_B);
+            }        
         } else {
             g_ColorBuffer.pixels[index].r = c1.x * 255;
             g_ColorBuffer.pixels[index].g = c1.y * 255;
             g_ColorBuffer.pixels[index].b = c1.z * 255;
-            g_ColorBuffer.pixels[index].a = 255;
-            g_ColorBuffer.pixels[index].z = v1.z;
         }
+        g_ColorBuffer.pixels[index].a = 255;
+        g_ColorBuffer.pixels[index].z = v1.z;
     }
     index = getIndexColorBuffer(g_ColorBuffer, floor(v2.x), floor(v2.y));
     if (v2.z < g_ColorBuffer.pixels[index].z) {
         if (g_ToggleTexture) {
-            g_ColorBuffer.pixels[index].r = g_Texture.textureData[getIndexTexture(g_Texture, t2.x, t2.y, CH_R)];
-            g_ColorBuffer.pixels[index].g = g_Texture.textureData[getIndexTexture(g_Texture, t2.x, t2.y, CH_G)];
-            g_ColorBuffer.pixels[index].b = g_Texture.textureData[getIndexTexture(g_Texture, t2.x, t2.y, CH_B)];
-            g_ColorBuffer.pixels[index].a = 255;
-            g_ColorBuffer.pixels[index].z = v2.z;
+            if (g_ToggleNearest) {
+                g_ColorBuffer.pixels[index].r = g_Texture.textureData[getIndexTexture(g_Texture, t2.x, t2.y, CH_R)];
+                g_ColorBuffer.pixels[index].g = g_Texture.textureData[getIndexTexture(g_Texture, t2.x, t2.y, CH_G)];
+                g_ColorBuffer.pixels[index].b = g_Texture.textureData[getIndexTexture(g_Texture, t2.x, t2.y, CH_B)];
+            } else if (g_ToggleLinear) {
+                g_ColorBuffer.pixels[index].r = getTextureColourBilinear(g_Texture, t2.x, t2.y, CH_R);
+                g_ColorBuffer.pixels[index].g = getTextureColourBilinear(g_Texture, t2.x, t2.y, CH_G);
+                g_ColorBuffer.pixels[index].b = getTextureColourBilinear(g_Texture, t2.x, t2.y, CH_B);
+            }        
         } else {
             g_ColorBuffer.pixels[index].r = c2.x * 255;
             g_ColorBuffer.pixels[index].g = c2.y * 255;
             g_ColorBuffer.pixels[index].b = c2.z * 255;
-            g_ColorBuffer.pixels[index].a = 255;
-            g_ColorBuffer.pixels[index].z = v2.z;
         }
+        g_ColorBuffer.pixels[index].a = 255;
+        g_ColorBuffer.pixels[index].z = v2.z;
     }
     index = getIndexColorBuffer(g_ColorBuffer, floor(v3.x), floor(v3.y));
     if (v3.z < g_ColorBuffer.pixels[index].z) {
         if (g_ToggleTexture) {
-            g_ColorBuffer.pixels[index].r = g_Texture.textureData[getIndexTexture(g_Texture, t3.x, t3.y, CH_R)];
-            g_ColorBuffer.pixels[index].g = g_Texture.textureData[getIndexTexture(g_Texture, t3.x, t3.y, CH_G)];
-            g_ColorBuffer.pixels[index].b = g_Texture.textureData[getIndexTexture(g_Texture, t3.x, t3.y, CH_B)];
-            g_ColorBuffer.pixels[index].a = 255;
-            g_ColorBuffer.pixels[index].z = v3.z;
+            if (g_ToggleNearest) {
+                g_ColorBuffer.pixels[index].r = g_Texture.textureData[getIndexTexture(g_Texture, t3.x, t3.y, CH_R)];
+                g_ColorBuffer.pixels[index].g = g_Texture.textureData[getIndexTexture(g_Texture, t3.x, t3.y, CH_G)];
+                g_ColorBuffer.pixels[index].b = g_Texture.textureData[getIndexTexture(g_Texture, t3.x, t3.y, CH_B)];
+            } else if (g_ToggleLinear) {
+                g_ColorBuffer.pixels[index].r = getTextureColourBilinear(g_Texture, t3.x, t3.y, CH_R);
+                g_ColorBuffer.pixels[index].g = getTextureColourBilinear(g_Texture, t3.x, t3.y, CH_G);
+                g_ColorBuffer.pixels[index].b = getTextureColourBilinear(g_Texture, t3.x, t3.y, CH_B);
+            }    
         } else {
             g_ColorBuffer.pixels[index].r = c3.x * 255;
             g_ColorBuffer.pixels[index].g = c3.y * 255;
             g_ColorBuffer.pixels[index].b = c3.z * 255;
-            g_ColorBuffer.pixels[index].a = 255;
-            g_ColorBuffer.pixels[index].z = v3.z;
         }
+        g_ColorBuffer.pixels[index].a = 255;
+        g_ColorBuffer.pixels[index].z = v3.z;
     }
     
     // desenhar as arestas
@@ -877,9 +921,15 @@ void DrawTriangle(glm::vec4 v1, glm::vec4 v2, glm::vec4 v3, glm::vec3 c1, glm::v
                 index = getIndexColorBuffer(g_ColorBuffer, floor(xini), floor(y0));
                 if (zini < g_ColorBuffer.pixels[index].z) {
                     if (g_ToggleTexture) {
-                        g_ColorBuffer.pixels[index].r = g_Texture.textureData[getIndexTexture(g_Texture, txini, tyini, CH_R)];
-                        g_ColorBuffer.pixels[index].g = g_Texture.textureData[getIndexTexture(g_Texture, txini, tyini, CH_G)];
-                        g_ColorBuffer.pixels[index].b = g_Texture.textureData[getIndexTexture(g_Texture, txini, tyini, CH_B)];
+                        if (g_ToggleNearest) {
+                            g_ColorBuffer.pixels[index].r = g_Texture.textureData[getIndexTexture(g_Texture, txini, tyini, CH_R)];
+                            g_ColorBuffer.pixels[index].g = g_Texture.textureData[getIndexTexture(g_Texture, txini, tyini, CH_G)];
+                            g_ColorBuffer.pixels[index].b = g_Texture.textureData[getIndexTexture(g_Texture, txini, tyini, CH_B)];
+                        } else if (g_ToggleLinear) {
+                            g_ColorBuffer.pixels[index].r = getTextureColourBilinear(g_Texture, txini, tyini, CH_R);
+                            g_ColorBuffer.pixels[index].g = getTextureColourBilinear(g_Texture, txini, tyini, CH_G);
+                            g_ColorBuffer.pixels[index].b = getTextureColourBilinear(g_Texture, txini, tyini, CH_B);
+                        }   
                     } else {
                         g_ColorBuffer.pixels[index].r = rini * 255;
                         g_ColorBuffer.pixels[index].g = gini * 255;
@@ -891,9 +941,15 @@ void DrawTriangle(glm::vec4 v1, glm::vec4 v2, glm::vec4 v3, glm::vec3 c1, glm::v
                 index = getIndexColorBuffer(g_ColorBuffer, floor(xf), floor(y0));
                 if (zf < g_ColorBuffer.pixels[index].z) {
                     if (g_ToggleTexture) {
-                        g_ColorBuffer.pixels[index].r = g_Texture.textureData[getIndexTexture(g_Texture, txf, tyf, CH_R)];
-                        g_ColorBuffer.pixels[index].g = g_Texture.textureData[getIndexTexture(g_Texture, txf, tyf, CH_G)];
-                        g_ColorBuffer.pixels[index].b = g_Texture.textureData[getIndexTexture(g_Texture, txf, tyf, CH_B)];                        
+                        if (g_ToggleNearest) {
+                            g_ColorBuffer.pixels[index].r = g_Texture.textureData[getIndexTexture(g_Texture, txf, tyf, CH_R)];
+                            g_ColorBuffer.pixels[index].g = g_Texture.textureData[getIndexTexture(g_Texture, txf, tyf, CH_G)];
+                            g_ColorBuffer.pixels[index].b = g_Texture.textureData[getIndexTexture(g_Texture, txf, tyf, CH_B)];   
+                        } else if (g_ToggleLinear) {
+                            g_ColorBuffer.pixels[index].r = getTextureColourBilinear(g_Texture, txf, tyf, CH_R);
+                            g_ColorBuffer.pixels[index].g = getTextureColourBilinear(g_Texture, txf, tyf, CH_G);
+                            g_ColorBuffer.pixels[index].b = getTextureColourBilinear(g_Texture, txf, tyf, CH_B);
+                        }
                     } else {
                         g_ColorBuffer.pixels[index].r = rf * 255;
                         g_ColorBuffer.pixels[index].g = gf * 255;
@@ -907,9 +963,15 @@ void DrawTriangle(glm::vec4 v1, glm::vec4 v2, glm::vec4 v3, glm::vec3 c1, glm::v
                     index = getIndexColorBuffer(g_ColorBuffer, floor(xini), floor(y0));
                     if (zini < g_ColorBuffer.pixels[index].z) {
                         if (g_ToggleTexture) {
-                            g_ColorBuffer.pixels[index].r = g_Texture.textureData[getIndexTexture(g_Texture, txini, tyini, CH_R)];
-                            g_ColorBuffer.pixels[index].g = g_Texture.textureData[getIndexTexture(g_Texture, txini, tyini, CH_G)];
-                            g_ColorBuffer.pixels[index].b = g_Texture.textureData[getIndexTexture(g_Texture, txini, tyini, CH_B)];
+                            if (g_ToggleNearest) {
+                                g_ColorBuffer.pixels[index].r = g_Texture.textureData[getIndexTexture(g_Texture, txini, tyini, CH_R)];
+                                g_ColorBuffer.pixels[index].g = g_Texture.textureData[getIndexTexture(g_Texture, txini, tyini, CH_G)];
+                                g_ColorBuffer.pixels[index].b = g_Texture.textureData[getIndexTexture(g_Texture, txini, tyini, CH_B)];
+                            } else if (g_ToggleLinear) {
+                                g_ColorBuffer.pixels[index].r = getTextureColourBilinear(g_Texture, txini, tyini, CH_R);
+                                g_ColorBuffer.pixels[index].g = getTextureColourBilinear(g_Texture, txini, tyini, CH_G);
+                                g_ColorBuffer.pixels[index].b = getTextureColourBilinear(g_Texture, txini, tyini, CH_B);
+                            }
                         } else {
                             g_ColorBuffer.pixels[index].r = rini * 255;
                             g_ColorBuffer.pixels[index].g = gini * 255;
@@ -977,9 +1039,15 @@ void DrawTriangle(glm::vec4 v1, glm::vec4 v2, glm::vec4 v3, glm::vec3 c1, glm::v
                     index = getIndexColorBuffer(g_ColorBuffer, floor(xini), floor(y0));
                     if (zini < g_ColorBuffer.pixels[index].z) {
                         if (g_ToggleTexture) {
-                            g_ColorBuffer.pixels[index].r = g_Texture.textureData[getIndexTexture(g_Texture, txini, tyini, CH_R)];
-                            g_ColorBuffer.pixels[index].g = g_Texture.textureData[getIndexTexture(g_Texture, txini, tyini, CH_G)];
-                            g_ColorBuffer.pixels[index].b = g_Texture.textureData[getIndexTexture(g_Texture, txini, tyini, CH_B)];
+                            if (g_ToggleNearest) {
+                                g_ColorBuffer.pixels[index].r = g_Texture.textureData[getIndexTexture(g_Texture, txini, tyini, CH_R)];
+                                g_ColorBuffer.pixels[index].g = g_Texture.textureData[getIndexTexture(g_Texture, txini, tyini, CH_G)];
+                                g_ColorBuffer.pixels[index].b = g_Texture.textureData[getIndexTexture(g_Texture, txini, tyini, CH_B)];
+                            } else if (g_ToggleLinear) {
+                                g_ColorBuffer.pixels[index].r = getTextureColourBilinear(g_Texture, txini, tyini, CH_R);
+                                g_ColorBuffer.pixels[index].g = getTextureColourBilinear(g_Texture, txini, tyini, CH_G);
+                                g_ColorBuffer.pixels[index].b = getTextureColourBilinear(g_Texture, txini, tyini, CH_B);
+                            }   
                         } else {
                             g_ColorBuffer.pixels[index].r = rini * 255;
                             g_ColorBuffer.pixels[index].g = gini * 255;
@@ -991,9 +1059,15 @@ void DrawTriangle(glm::vec4 v1, glm::vec4 v2, glm::vec4 v3, glm::vec3 c1, glm::v
                     index = getIndexColorBuffer(g_ColorBuffer, floor(xf), floor(y0));
                     if (zf < g_ColorBuffer.pixels[index].z) {
                         if (g_ToggleTexture) {
-                            g_ColorBuffer.pixels[index].r = g_Texture.textureData[getIndexTexture(g_Texture, txf, tyf, CH_R)];
-                            g_ColorBuffer.pixels[index].g = g_Texture.textureData[getIndexTexture(g_Texture, txf, tyf, CH_G)];
-                            g_ColorBuffer.pixels[index].b = g_Texture.textureData[getIndexTexture(g_Texture, txf, tyf, CH_B)];
+                            if (g_ToggleNearest) {
+                                g_ColorBuffer.pixels[index].r = g_Texture.textureData[getIndexTexture(g_Texture, txf, tyf, CH_R)];
+                                g_ColorBuffer.pixels[index].g = g_Texture.textureData[getIndexTexture(g_Texture, txf, tyf, CH_G)];
+                                g_ColorBuffer.pixels[index].b = g_Texture.textureData[getIndexTexture(g_Texture, txf, tyf, CH_B)];
+                            } else if (g_ToggleLinear) {
+                                g_ColorBuffer.pixels[index].r = getTextureColourBilinear(g_Texture, txf, tyf, CH_R);
+                                g_ColorBuffer.pixels[index].g = getTextureColourBilinear(g_Texture, txf, tyf, CH_G);
+                                g_ColorBuffer.pixels[index].b = getTextureColourBilinear(g_Texture, txf, tyf, CH_B);
+                            }
                         } else {
                             g_ColorBuffer.pixels[index].r = rf * 255;
                             g_ColorBuffer.pixels[index].g = gf * 255;
@@ -1006,10 +1080,16 @@ void DrawTriangle(glm::vec4 v1, glm::vec4 v2, glm::vec4 v3, glm::vec3 c1, glm::v
                     for (; xini <= xf; xini++) {
                         index = getIndexColorBuffer(g_ColorBuffer, floor(xini), floor(y0));
                         if (zini < g_ColorBuffer.pixels[index].z) {
-                            if (g_ToggleTexture) {
-                                g_ColorBuffer.pixels[index].r = g_Texture.textureData[getIndexTexture(g_Texture, txini, tyini, CH_R)];
-                                g_ColorBuffer.pixels[index].g = g_Texture.textureData[getIndexTexture(g_Texture, txini, tyini, CH_G)];
-                                g_ColorBuffer.pixels[index].b = g_Texture.textureData[getIndexTexture(g_Texture, txini, tyini, CH_B)];
+                        if (g_ToggleTexture) {
+                                if (g_ToggleNearest) {
+                                    g_ColorBuffer.pixels[index].r = g_Texture.textureData[getIndexTexture(g_Texture, txini, tyini, CH_R)];
+                                    g_ColorBuffer.pixels[index].g = g_Texture.textureData[getIndexTexture(g_Texture, txini, tyini, CH_G)];
+                                    g_ColorBuffer.pixels[index].b = g_Texture.textureData[getIndexTexture(g_Texture, txini, tyini, CH_B)];
+                                } else if (g_ToggleLinear) {
+                                    g_ColorBuffer.pixels[index].r = getTextureColourBilinear(g_Texture, txini, tyini, CH_R);
+                                    g_ColorBuffer.pixels[index].g = getTextureColourBilinear(g_Texture, txini, tyini, CH_G);
+                                    g_ColorBuffer.pixels[index].b = getTextureColourBilinear(g_Texture, txini, tyini, CH_B);
+                                }   
                             } else {
                                 g_ColorBuffer.pixels[index].r = rini * 255;
                                 g_ColorBuffer.pixels[index].g = gini * 255;
@@ -1072,10 +1152,16 @@ void DrawTriangle(glm::vec4 v1, glm::vec4 v2, glm::vec4 v3, glm::vec3 c1, glm::v
                 if (g_ToggleWireframe) {
                     index = getIndexColorBuffer(g_ColorBuffer, floor(xini), floor(y0));
                     if (zini < g_ColorBuffer.pixels[index].z) {
-                        if (g_ToggleTexture) { 
-                            g_ColorBuffer.pixels[index].r = g_Texture.textureData[getIndexTexture(g_Texture, txini, tyini, CH_R)];
-                            g_ColorBuffer.pixels[index].g = g_Texture.textureData[getIndexTexture(g_Texture, txini, tyini, CH_G)];
-                            g_ColorBuffer.pixels[index].b = g_Texture.textureData[getIndexTexture(g_Texture, txini, tyini, CH_B)];
+                        if (g_ToggleTexture) {
+                            if (g_ToggleNearest) {
+                                g_ColorBuffer.pixels[index].r = g_Texture.textureData[getIndexTexture(g_Texture, txini, tyini, CH_R)];
+                                g_ColorBuffer.pixels[index].g = g_Texture.textureData[getIndexTexture(g_Texture, txini, tyini, CH_G)];
+                                g_ColorBuffer.pixels[index].b = g_Texture.textureData[getIndexTexture(g_Texture, txini, tyini, CH_B)];
+                            } else if (g_ToggleLinear) {
+                                g_ColorBuffer.pixels[index].r = getTextureColourBilinear(g_Texture, txini, tyini, CH_R);
+                                g_ColorBuffer.pixels[index].g = getTextureColourBilinear(g_Texture, txini, tyini, CH_G);
+                                g_ColorBuffer.pixels[index].b = getTextureColourBilinear(g_Texture, txini, tyini, CH_B);
+                            }   
                         } else {
                             g_ColorBuffer.pixels[index].r = rini * 255;
                             g_ColorBuffer.pixels[index].g = gini * 255;
@@ -1087,9 +1173,15 @@ void DrawTriangle(glm::vec4 v1, glm::vec4 v2, glm::vec4 v3, glm::vec3 c1, glm::v
                     index = getIndexColorBuffer(g_ColorBuffer, floor(xf), floor(y0));
                     if (zf < g_ColorBuffer.pixels[index].z) {
                         if (g_ToggleTexture) {
-                            g_ColorBuffer.pixels[index].r = g_Texture.textureData[getIndexTexture(g_Texture, txf, tyf, CH_R)];
-                            g_ColorBuffer.pixels[index].g = g_Texture.textureData[getIndexTexture(g_Texture, txf, tyf, CH_G)];
-                            g_ColorBuffer.pixels[index].b = g_Texture.textureData[getIndexTexture(g_Texture, txf, tyf, CH_B)];
+                            if (g_ToggleNearest) {
+                                g_ColorBuffer.pixels[index].r = g_Texture.textureData[getIndexTexture(g_Texture, txf, tyf, CH_R)];
+                                g_ColorBuffer.pixels[index].g = g_Texture.textureData[getIndexTexture(g_Texture, txf, tyf, CH_G)];
+                                g_ColorBuffer.pixels[index].b = g_Texture.textureData[getIndexTexture(g_Texture, txf, tyf, CH_B)];
+                            } else if (g_ToggleLinear) {
+                                g_ColorBuffer.pixels[index].r = getTextureColourBilinear(g_Texture, txf, tyf, CH_R);
+                                g_ColorBuffer.pixels[index].g = getTextureColourBilinear(g_Texture, txf, tyf, CH_G);
+                                g_ColorBuffer.pixels[index].b = getTextureColourBilinear(g_Texture, txf, tyf, CH_B);
+                            }
                         } else {
                             g_ColorBuffer.pixels[index].r = rf * 255;
                             g_ColorBuffer.pixels[index].g = gf * 255;
@@ -1103,9 +1195,15 @@ void DrawTriangle(glm::vec4 v1, glm::vec4 v2, glm::vec4 v3, glm::vec3 c1, glm::v
                         index = getIndexColorBuffer(g_ColorBuffer, floor(xini), floor(y0));
                         if (zini < g_ColorBuffer.pixels[index].z) {
                             if (g_ToggleTexture) {
-                                g_ColorBuffer.pixels[index].r = g_Texture.textureData[getIndexTexture(g_Texture, txini, tyini, CH_R)];
-                                g_ColorBuffer.pixels[index].g = g_Texture.textureData[getIndexTexture(g_Texture, txini, tyini, CH_G)];
-                                g_ColorBuffer.pixels[index].b = g_Texture.textureData[getIndexTexture(g_Texture, txini, tyini, CH_B)];
+                                if (g_ToggleNearest) {
+                                    g_ColorBuffer.pixels[index].r = g_Texture.textureData[getIndexTexture(g_Texture, txini, tyini, CH_R)];
+                                    g_ColorBuffer.pixels[index].g = g_Texture.textureData[getIndexTexture(g_Texture, txini, tyini, CH_G)];
+                                    g_ColorBuffer.pixels[index].b = g_Texture.textureData[getIndexTexture(g_Texture, txini, tyini, CH_B)];
+                                } else if (g_ToggleLinear) {
+                                    g_ColorBuffer.pixels[index].r = getTextureColourBilinear(g_Texture, txini, tyini, CH_R);
+                                    g_ColorBuffer.pixels[index].g = getTextureColourBilinear(g_Texture, txini, tyini, CH_G);
+                                    g_ColorBuffer.pixels[index].b = getTextureColourBilinear(g_Texture, txini, tyini, CH_B);
+                                }   
                             } else {
                                 g_ColorBuffer.pixels[index].r = rini * 255;
                                 g_ColorBuffer.pixels[index].g = gini * 255;
@@ -1173,9 +1271,15 @@ void DrawTriangle(glm::vec4 v1, glm::vec4 v2, glm::vec4 v3, glm::vec3 c1, glm::v
                     index = getIndexColorBuffer(g_ColorBuffer, floor(xini), floor(y0));
                     if (zini < g_ColorBuffer.pixels[index].z) {
                         if (g_ToggleTexture) {
-                            g_ColorBuffer.pixels[index].r = g_Texture.textureData[getIndexTexture(g_Texture, txini, tyini, CH_R)];
-                            g_ColorBuffer.pixels[index].g = g_Texture.textureData[getIndexTexture(g_Texture, txini, tyini, CH_G)];
-                            g_ColorBuffer.pixels[index].b = g_Texture.textureData[getIndexTexture(g_Texture, txini, tyini, CH_B)];
+                            if (g_ToggleNearest) {
+                                g_ColorBuffer.pixels[index].r = g_Texture.textureData[getIndexTexture(g_Texture, txini, tyini, CH_R)];
+                                g_ColorBuffer.pixels[index].g = g_Texture.textureData[getIndexTexture(g_Texture, txini, tyini, CH_G)];
+                                g_ColorBuffer.pixels[index].b = g_Texture.textureData[getIndexTexture(g_Texture, txini, tyini, CH_B)];
+                            } else if (g_ToggleLinear) {
+                                g_ColorBuffer.pixels[index].r = getTextureColourBilinear(g_Texture, txini, tyini, CH_R);
+                                g_ColorBuffer.pixels[index].g = getTextureColourBilinear(g_Texture, txini, tyini, CH_G);
+                                g_ColorBuffer.pixels[index].b = getTextureColourBilinear(g_Texture, txini, tyini, CH_B);
+                            }   
                         } else {
                             g_ColorBuffer.pixels[index].r = rini * 255;
                             g_ColorBuffer.pixels[index].g = gini * 255;
@@ -1187,9 +1291,15 @@ void DrawTriangle(glm::vec4 v1, glm::vec4 v2, glm::vec4 v3, glm::vec3 c1, glm::v
                     index = getIndexColorBuffer(g_ColorBuffer, floor(xf), floor(y0));
                     if (zf < g_ColorBuffer.pixels[index].z) {
                         if (g_ToggleTexture) {
-                            g_ColorBuffer.pixels[index].r = g_Texture.textureData[getIndexTexture(g_Texture, txf, tyf, CH_R)];
-                            g_ColorBuffer.pixels[index].g = g_Texture.textureData[getIndexTexture(g_Texture, txf, tyf, CH_G)];
-                            g_ColorBuffer.pixels[index].b = g_Texture.textureData[getIndexTexture(g_Texture, txf, tyf, CH_B)];
+                            if (g_ToggleNearest) {
+                                g_ColorBuffer.pixels[index].r = g_Texture.textureData[getIndexTexture(g_Texture, txf, tyf, CH_R)];
+                                g_ColorBuffer.pixels[index].g = g_Texture.textureData[getIndexTexture(g_Texture, txf, tyf, CH_G)];
+                                g_ColorBuffer.pixels[index].b = g_Texture.textureData[getIndexTexture(g_Texture, txf, tyf, CH_B)];
+                            } else if (g_ToggleLinear) {
+                                g_ColorBuffer.pixels[index].r = getTextureColourBilinear(g_Texture, txf, tyf, CH_R);
+                                g_ColorBuffer.pixels[index].g = getTextureColourBilinear(g_Texture, txf, tyf, CH_G);
+                                g_ColorBuffer.pixels[index].b = getTextureColourBilinear(g_Texture, txf, tyf, CH_B);
+                            }
                         } else {
                             g_ColorBuffer.pixels[index].r = rf * 255;
                             g_ColorBuffer.pixels[index].g = gf * 255;
@@ -1203,9 +1313,15 @@ void DrawTriangle(glm::vec4 v1, glm::vec4 v2, glm::vec4 v3, glm::vec3 c1, glm::v
                         index = getIndexColorBuffer(g_ColorBuffer, floor(xini), floor(y0));
                         if (zini < g_ColorBuffer.pixels[index].z) {
                             if (g_ToggleTexture) {
-                                g_ColorBuffer.pixels[index].r = g_Texture.textureData[getIndexTexture(g_Texture, txini, tyini, CH_R)];
-                                g_ColorBuffer.pixels[index].g = g_Texture.textureData[getIndexTexture(g_Texture, txini, tyini, CH_G)];
-                                g_ColorBuffer.pixels[index].b = g_Texture.textureData[getIndexTexture(g_Texture, txini, tyini, CH_B)];
+                                if (g_ToggleNearest) {
+                                    g_ColorBuffer.pixels[index].r = g_Texture.textureData[getIndexTexture(g_Texture, txini, tyini, CH_R)];
+                                    g_ColorBuffer.pixels[index].g = g_Texture.textureData[getIndexTexture(g_Texture, txini, tyini, CH_G)];
+                                    g_ColorBuffer.pixels[index].b = g_Texture.textureData[getIndexTexture(g_Texture, txini, tyini, CH_B)];
+                                } else if (g_ToggleLinear) {
+                                    g_ColorBuffer.pixels[index].r = getTextureColourBilinear(g_Texture, txini, tyini, CH_R);
+                                    g_ColorBuffer.pixels[index].g = getTextureColourBilinear(g_Texture, txini, tyini, CH_G);
+                                    g_ColorBuffer.pixels[index].b = getTextureColourBilinear(g_Texture, txini, tyini, CH_B);
+                                }   
                             } else {
                                 g_ColorBuffer.pixels[index].r = rini * 255;
                                 g_ColorBuffer.pixels[index].g = gini * 255;
@@ -1269,9 +1385,15 @@ void DrawTriangle(glm::vec4 v1, glm::vec4 v2, glm::vec4 v3, glm::vec3 c1, glm::v
                     index = getIndexColorBuffer(g_ColorBuffer, floor(xini), floor(y0));
                     if (zini < g_ColorBuffer.pixels[index].z) {
                         if (g_ToggleTexture) {
-                            g_ColorBuffer.pixels[index].r = g_Texture.textureData[getIndexTexture(g_Texture, txini, tyini, CH_R)];
-                            g_ColorBuffer.pixels[index].g = g_Texture.textureData[getIndexTexture(g_Texture, txini, tyini, CH_G)];
-                            g_ColorBuffer.pixels[index].b = g_Texture.textureData[getIndexTexture(g_Texture, txini, tyini, CH_B)];
+                            if (g_ToggleNearest) {
+                                g_ColorBuffer.pixels[index].r = g_Texture.textureData[getIndexTexture(g_Texture, txini, tyini, CH_R)];
+                                g_ColorBuffer.pixels[index].g = g_Texture.textureData[getIndexTexture(g_Texture, txini, tyini, CH_G)];
+                                g_ColorBuffer.pixels[index].b = g_Texture.textureData[getIndexTexture(g_Texture, txini, tyini, CH_B)];
+                            } else if (g_ToggleLinear) {
+                                g_ColorBuffer.pixels[index].r = getTextureColourBilinear(g_Texture, txini, tyini, CH_R);
+                                g_ColorBuffer.pixels[index].g = getTextureColourBilinear(g_Texture, txini, tyini, CH_G);
+                                g_ColorBuffer.pixels[index].b = getTextureColourBilinear(g_Texture, txini, tyini, CH_B);
+                            }   
                         } else {
                             g_ColorBuffer.pixels[index].r = rini * 255;
                             g_ColorBuffer.pixels[index].g = gini * 255;
@@ -1283,9 +1405,15 @@ void DrawTriangle(glm::vec4 v1, glm::vec4 v2, glm::vec4 v3, glm::vec3 c1, glm::v
                     index = getIndexColorBuffer(g_ColorBuffer, floor(xf), floor(y0));
                     if (zf < g_ColorBuffer.pixels[index].z) {
                         if (g_ToggleTexture) {
-                            g_ColorBuffer.pixels[index].r = g_Texture.textureData[getIndexTexture(g_Texture, txf, tyf, CH_R)];
-                            g_ColorBuffer.pixels[index].g = g_Texture.textureData[getIndexTexture(g_Texture, txf, tyf, CH_G)];
-                            g_ColorBuffer.pixels[index].b = g_Texture.textureData[getIndexTexture(g_Texture, txf, tyf, CH_B)];
+                            if (g_ToggleNearest) {
+                                g_ColorBuffer.pixels[index].r = g_Texture.textureData[getIndexTexture(g_Texture, txf, tyf, CH_R)];
+                                g_ColorBuffer.pixels[index].g = g_Texture.textureData[getIndexTexture(g_Texture, txf, tyf, CH_G)];
+                                g_ColorBuffer.pixels[index].b = g_Texture.textureData[getIndexTexture(g_Texture, txf, tyf, CH_B)];
+                            } else if (g_ToggleLinear) {
+                                g_ColorBuffer.pixels[index].r = getTextureColourBilinear(g_Texture, txf, tyf, CH_R);
+                                g_ColorBuffer.pixels[index].g = getTextureColourBilinear(g_Texture, txf, tyf, CH_G);
+                                g_ColorBuffer.pixels[index].b = getTextureColourBilinear(g_Texture, txf, tyf, CH_B);
+                            }
                         } else {
                             g_ColorBuffer.pixels[index].r = rf * 255;
                             g_ColorBuffer.pixels[index].g = gf * 255;
@@ -1299,9 +1427,15 @@ void DrawTriangle(glm::vec4 v1, glm::vec4 v2, glm::vec4 v3, glm::vec3 c1, glm::v
                         index = getIndexColorBuffer(g_ColorBuffer, floor(xini), floor(y0));
                         if (zini < g_ColorBuffer.pixels[index].z) {
                             if (g_ToggleTexture) {
-                                g_ColorBuffer.pixels[index].r = g_Texture.textureData[getIndexTexture(g_Texture, txini, tyini, CH_R)];
-                                g_ColorBuffer.pixels[index].g = g_Texture.textureData[getIndexTexture(g_Texture, txini, tyini, CH_G)];
-                                g_ColorBuffer.pixels[index].b = g_Texture.textureData[getIndexTexture(g_Texture, txini, tyini, CH_B)];
+                                if (g_ToggleNearest) {
+                                    g_ColorBuffer.pixels[index].r = g_Texture.textureData[getIndexTexture(g_Texture, txini, tyini, CH_R)];
+                                    g_ColorBuffer.pixels[index].g = g_Texture.textureData[getIndexTexture(g_Texture, txini, tyini, CH_G)];
+                                    g_ColorBuffer.pixels[index].b = g_Texture.textureData[getIndexTexture(g_Texture, txini, tyini, CH_B)];
+                                } else if (g_ToggleLinear) {
+                                    g_ColorBuffer.pixels[index].r = getTextureColourBilinear(g_Texture, txini, tyini, CH_R);
+                                    g_ColorBuffer.pixels[index].g = getTextureColourBilinear(g_Texture, txini, tyini, CH_G);
+                                    g_ColorBuffer.pixels[index].b = getTextureColourBilinear(g_Texture, txini, tyini, CH_B);
+                                }   
                             } else {
                                 g_ColorBuffer.pixels[index].r = rini * 255;
                                 g_ColorBuffer.pixels[index].g = gini * 255;
@@ -1356,10 +1490,16 @@ void DrawTriangle(glm::vec4 v1, glm::vec4 v2, glm::vec4 v3, glm::vec3 c1, glm::v
                 index = getIndexColorBuffer(g_ColorBuffer, floor(xini), floor(y0));
                 if (zini < g_ColorBuffer.pixels[index].z) {
                     if (g_ToggleTexture) {
-                        g_ColorBuffer.pixels[index].r = g_Texture.textureData[getIndexTexture(g_Texture, txini, tyini, CH_R)];
-                        g_ColorBuffer.pixels[index].g = g_Texture.textureData[getIndexTexture(g_Texture, txini, tyini, CH_G)];
-                        g_ColorBuffer.pixels[index].b = g_Texture.textureData[getIndexTexture(g_Texture, txini, tyini, CH_B)];
-                    } else {
+                            if (g_ToggleNearest) {
+                                g_ColorBuffer.pixels[index].r = g_Texture.textureData[getIndexTexture(g_Texture, txini, tyini, CH_R)];
+                                g_ColorBuffer.pixels[index].g = g_Texture.textureData[getIndexTexture(g_Texture, txini, tyini, CH_G)];
+                                g_ColorBuffer.pixels[index].b = g_Texture.textureData[getIndexTexture(g_Texture, txini, tyini, CH_B)];
+                            } else if (g_ToggleLinear) {
+                                g_ColorBuffer.pixels[index].r = getTextureColourBilinear(g_Texture, txini, tyini, CH_R);
+                                g_ColorBuffer.pixels[index].g = getTextureColourBilinear(g_Texture, txini, tyini, CH_G);
+                                g_ColorBuffer.pixels[index].b = getTextureColourBilinear(g_Texture, txini, tyini, CH_B);
+                            }   
+                        } else {
                         g_ColorBuffer.pixels[index].r = rini * 255;
                         g_ColorBuffer.pixels[index].g = gini * 255;
                         g_ColorBuffer.pixels[index].b = bini * 255;
@@ -1447,9 +1587,15 @@ void DrawTriangle(glm::vec4 v1, glm::vec4 v2, glm::vec4 v3, glm::vec3 c1, glm::v
                 index = getIndexColorBuffer(g_ColorBuffer, floor(xini), floor(y0));
                 if (zini < g_ColorBuffer.pixels[index].z) {
                     if (g_ToggleTexture) {
-                        g_ColorBuffer.pixels[index].r = g_Texture.textureData[getIndexTexture(g_Texture, txini, tyini, CH_R)];
-                        g_ColorBuffer.pixels[index].g = g_Texture.textureData[getIndexTexture(g_Texture, txini, tyini, CH_G)];
-                        g_ColorBuffer.pixels[index].b = g_Texture.textureData[getIndexTexture(g_Texture, txini, tyini, CH_B)];
+                        if (g_ToggleNearest) {
+                            g_ColorBuffer.pixels[index].r = g_Texture.textureData[getIndexTexture(g_Texture, txini, tyini, CH_R)];
+                            g_ColorBuffer.pixels[index].g = g_Texture.textureData[getIndexTexture(g_Texture, txini, tyini, CH_G)];
+                            g_ColorBuffer.pixels[index].b = g_Texture.textureData[getIndexTexture(g_Texture, txini, tyini, CH_B)];
+                        } else if (g_ToggleLinear) {
+                            g_ColorBuffer.pixels[index].r = getTextureColourBilinear(g_Texture, txini, tyini, CH_R);
+                            g_ColorBuffer.pixels[index].g = getTextureColourBilinear(g_Texture, txini, tyini, CH_G);
+                            g_ColorBuffer.pixels[index].b = getTextureColourBilinear(g_Texture, txini, tyini, CH_B);
+                        }   
                     } else {
                         g_ColorBuffer.pixels[index].r = rini * 255;
                         g_ColorBuffer.pixels[index].g = gini * 255;
@@ -1460,10 +1606,16 @@ void DrawTriangle(glm::vec4 v1, glm::vec4 v2, glm::vec4 v3, glm::vec3 c1, glm::v
                 }
                 index = getIndexColorBuffer(g_ColorBuffer, floor(xf), floor(y0));
                 if (zf < g_ColorBuffer.pixels[index].z) {
-                    if (g_ToggleTexture) {
-                        g_ColorBuffer.pixels[index].r = g_Texture.textureData[getIndexTexture(g_Texture, txf, tyf, CH_R)];
-                        g_ColorBuffer.pixels[index].g = g_Texture.textureData[getIndexTexture(g_Texture, txf, tyf, CH_G)];
-                        g_ColorBuffer.pixels[index].b = g_Texture.textureData[getIndexTexture(g_Texture, txf, tyf, CH_B)];
+                   if (g_ToggleTexture) {
+                        if (g_ToggleNearest) {
+                            g_ColorBuffer.pixels[index].r = g_Texture.textureData[getIndexTexture(g_Texture, txf, tyf, CH_R)];
+                            g_ColorBuffer.pixels[index].g = g_Texture.textureData[getIndexTexture(g_Texture, txf, tyf, CH_G)];
+                            g_ColorBuffer.pixels[index].b = g_Texture.textureData[getIndexTexture(g_Texture, txf, tyf, CH_B)];
+                        } else if (g_ToggleLinear) {
+                            g_ColorBuffer.pixels[index].r = getTextureColourBilinear(g_Texture, txf, tyf, CH_R);
+                            g_ColorBuffer.pixels[index].g = getTextureColourBilinear(g_Texture, txf, tyf, CH_G);
+                            g_ColorBuffer.pixels[index].b = getTextureColourBilinear(g_Texture, txf, tyf, CH_B);
+                        }
                     } else {
                         g_ColorBuffer.pixels[index].r = rf * 255;
                         g_ColorBuffer.pixels[index].g = gf * 255;
@@ -1477,9 +1629,15 @@ void DrawTriangle(glm::vec4 v1, glm::vec4 v2, glm::vec4 v3, glm::vec3 c1, glm::v
                     index = getIndexColorBuffer(g_ColorBuffer, floor(xini), floor(y0));
                     if (zini < g_ColorBuffer.pixels[index].z) {
                         if (g_ToggleTexture) {
-                            g_ColorBuffer.pixels[index].r = g_Texture.textureData[getIndexTexture(g_Texture, txini, tyini, CH_R)];
-                            g_ColorBuffer.pixels[index].g = g_Texture.textureData[getIndexTexture(g_Texture, txini, tyini, CH_G)];
-                            g_ColorBuffer.pixels[index].b = g_Texture.textureData[getIndexTexture(g_Texture, txini, tyini, CH_B)];
+                            if (g_ToggleNearest) {
+                                g_ColorBuffer.pixels[index].r = g_Texture.textureData[getIndexTexture(g_Texture, txini, tyini, CH_R)];
+                                g_ColorBuffer.pixels[index].g = g_Texture.textureData[getIndexTexture(g_Texture, txini, tyini, CH_G)];
+                                g_ColorBuffer.pixels[index].b = g_Texture.textureData[getIndexTexture(g_Texture, txini, tyini, CH_B)];
+                            } else if (g_ToggleLinear) {
+                                g_ColorBuffer.pixels[index].r = getTextureColourBilinear(g_Texture, txini, tyini, CH_R);
+                                g_ColorBuffer.pixels[index].g = getTextureColourBilinear(g_Texture, txini, tyini, CH_G);
+                                g_ColorBuffer.pixels[index].b = getTextureColourBilinear(g_Texture, txini, tyini, CH_B);
+                            }   
                         } else {
                             g_ColorBuffer.pixels[index].r = rini * 255;
                             g_ColorBuffer.pixels[index].g = gini * 255;
@@ -1547,9 +1705,15 @@ void DrawTriangle(glm::vec4 v1, glm::vec4 v2, glm::vec4 v3, glm::vec3 c1, glm::v
                     index = getIndexColorBuffer(g_ColorBuffer, floor(xini), floor(y0));
                     if (zini < g_ColorBuffer.pixels[index].z) {
                         if (g_ToggleTexture) {
-                            g_ColorBuffer.pixels[index].r = g_Texture.textureData[getIndexTexture(g_Texture, txini, tyini, CH_R)];
-                            g_ColorBuffer.pixels[index].g = g_Texture.textureData[getIndexTexture(g_Texture, txini, tyini, CH_G)];
-                            g_ColorBuffer.pixels[index].b = g_Texture.textureData[getIndexTexture(g_Texture, txini, tyini, CH_B)];
+                            if (g_ToggleNearest) {
+                                g_ColorBuffer.pixels[index].r = g_Texture.textureData[getIndexTexture(g_Texture, txini, tyini, CH_R)];
+                                g_ColorBuffer.pixels[index].g = g_Texture.textureData[getIndexTexture(g_Texture, txini, tyini, CH_G)];
+                                g_ColorBuffer.pixels[index].b = g_Texture.textureData[getIndexTexture(g_Texture, txini, tyini, CH_B)];
+                            } else if (g_ToggleLinear) {
+                                g_ColorBuffer.pixels[index].r = getTextureColourBilinear(g_Texture, txini, tyini, CH_R);
+                                g_ColorBuffer.pixels[index].g = getTextureColourBilinear(g_Texture, txini, tyini, CH_G);
+                                g_ColorBuffer.pixels[index].b = getTextureColourBilinear(g_Texture, txini, tyini, CH_B);
+                            }   
                         } else {
                             g_ColorBuffer.pixels[index].r = rini * 255;
                             g_ColorBuffer.pixels[index].g = gini * 255;
@@ -1561,9 +1725,15 @@ void DrawTriangle(glm::vec4 v1, glm::vec4 v2, glm::vec4 v3, glm::vec3 c1, glm::v
                     index = getIndexColorBuffer(g_ColorBuffer, floor(xf), floor(y0));
                     if (zf < g_ColorBuffer.pixels[index].z) {
                         if (g_ToggleTexture) {
-                            g_ColorBuffer.pixels[index].r = g_Texture.textureData[getIndexTexture(g_Texture, txf, tyf, CH_R)];
-                            g_ColorBuffer.pixels[index].g = g_Texture.textureData[getIndexTexture(g_Texture, txf, tyf, CH_G)];
-                            g_ColorBuffer.pixels[index].b = g_Texture.textureData[getIndexTexture(g_Texture, txf, tyf, CH_B)];
+                            if (g_ToggleNearest) {
+                                g_ColorBuffer.pixels[index].r = g_Texture.textureData[getIndexTexture(g_Texture, txf, tyf, CH_R)];
+                                g_ColorBuffer.pixels[index].g = g_Texture.textureData[getIndexTexture(g_Texture, txf, tyf, CH_G)];
+                                g_ColorBuffer.pixels[index].b = g_Texture.textureData[getIndexTexture(g_Texture, txf, tyf, CH_B)];
+                            } else if (g_ToggleLinear) {
+                                g_ColorBuffer.pixels[index].r = getTextureColourBilinear(g_Texture, txf, tyf, CH_R);
+                                g_ColorBuffer.pixels[index].g = getTextureColourBilinear(g_Texture, txf, tyf, CH_G);
+                                g_ColorBuffer.pixels[index].b = getTextureColourBilinear(g_Texture, txf, tyf, CH_B);
+                            }
                         } else {
                             g_ColorBuffer.pixels[index].r = rf * 255;
                             g_ColorBuffer.pixels[index].g = gf * 255;
@@ -1577,9 +1747,15 @@ void DrawTriangle(glm::vec4 v1, glm::vec4 v2, glm::vec4 v3, glm::vec3 c1, glm::v
                         index = getIndexColorBuffer(g_ColorBuffer, floor(xini), floor(y0));
                         if (zini < g_ColorBuffer.pixels[index].z) {
                             if (g_ToggleTexture) {
-                                g_ColorBuffer.pixels[index].r = g_Texture.textureData[getIndexTexture(g_Texture, txini, tyini, CH_R)];
-                                g_ColorBuffer.pixels[index].g = g_Texture.textureData[getIndexTexture(g_Texture, txini, tyini, CH_G)];
-                                g_ColorBuffer.pixels[index].b = g_Texture.textureData[getIndexTexture(g_Texture, txini, tyini, CH_B)];
+                                if (g_ToggleNearest) {
+                                    g_ColorBuffer.pixels[index].r = g_Texture.textureData[getIndexTexture(g_Texture, txini, tyini, CH_R)];
+                                    g_ColorBuffer.pixels[index].g = g_Texture.textureData[getIndexTexture(g_Texture, txini, tyini, CH_G)];
+                                    g_ColorBuffer.pixels[index].b = g_Texture.textureData[getIndexTexture(g_Texture, txini, tyini, CH_B)];
+                                } else if (g_ToggleLinear) {
+                                    g_ColorBuffer.pixels[index].r = getTextureColourBilinear(g_Texture, txini, tyini, CH_R);
+                                    g_ColorBuffer.pixels[index].g = getTextureColourBilinear(g_Texture, txini, tyini, CH_G);
+                                    g_ColorBuffer.pixels[index].b = getTextureColourBilinear(g_Texture, txini, tyini, CH_B);
+                                }   
                             } else {
                                 g_ColorBuffer.pixels[index].r = rini * 255;
                                 g_ColorBuffer.pixels[index].g = gini * 255;
@@ -1643,9 +1819,15 @@ void DrawTriangle(glm::vec4 v1, glm::vec4 v2, glm::vec4 v3, glm::vec3 c1, glm::v
                     index = getIndexColorBuffer(g_ColorBuffer, floor(xini), floor(y0));
                     if (zini < g_ColorBuffer.pixels[index].z) {
                         if (g_ToggleTexture) {
-                            g_ColorBuffer.pixels[index].r = g_Texture.textureData[getIndexTexture(g_Texture, txini, tyini, CH_R)];
-                            g_ColorBuffer.pixels[index].g = g_Texture.textureData[getIndexTexture(g_Texture, txini, tyini, CH_G)];
-                            g_ColorBuffer.pixels[index].b = g_Texture.textureData[getIndexTexture(g_Texture, txini, tyini, CH_B)];
+                            if (g_ToggleNearest) {
+                                g_ColorBuffer.pixels[index].r = g_Texture.textureData[getIndexTexture(g_Texture, txini, tyini, CH_R)];
+                                g_ColorBuffer.pixels[index].g = g_Texture.textureData[getIndexTexture(g_Texture, txini, tyini, CH_G)];
+                                g_ColorBuffer.pixels[index].b = g_Texture.textureData[getIndexTexture(g_Texture, txini, tyini, CH_B)];
+                            } else if (g_ToggleLinear) {
+                                g_ColorBuffer.pixels[index].r = getTextureColourBilinear(g_Texture, txini, tyini, CH_R);
+                                g_ColorBuffer.pixels[index].g = getTextureColourBilinear(g_Texture, txini, tyini, CH_G);
+                                g_ColorBuffer.pixels[index].b = getTextureColourBilinear(g_Texture, txini, tyini, CH_B);
+                            }   
                         } else {
                             g_ColorBuffer.pixels[index].r = rini * 255;
                             g_ColorBuffer.pixels[index].g = gini * 255;
@@ -1657,9 +1839,15 @@ void DrawTriangle(glm::vec4 v1, glm::vec4 v2, glm::vec4 v3, glm::vec3 c1, glm::v
                     index = getIndexColorBuffer(g_ColorBuffer, floor(xf), floor(y0));
                     if (zf < g_ColorBuffer.pixels[index].z) {
                         if (g_ToggleTexture) {
-                            g_ColorBuffer.pixels[index].r = g_Texture.textureData[getIndexTexture(g_Texture, txf, tyf, CH_R)];
-                            g_ColorBuffer.pixels[index].g = g_Texture.textureData[getIndexTexture(g_Texture, txf, tyf, CH_G)];
-                            g_ColorBuffer.pixels[index].b = g_Texture.textureData[getIndexTexture(g_Texture, txf, tyf, CH_B)];
+                            if (g_ToggleNearest) {
+                                g_ColorBuffer.pixels[index].r = g_Texture.textureData[getIndexTexture(g_Texture, txf, tyf, CH_R)];
+                                g_ColorBuffer.pixels[index].g = g_Texture.textureData[getIndexTexture(g_Texture, txf, tyf, CH_G)];
+                                g_ColorBuffer.pixels[index].b = g_Texture.textureData[getIndexTexture(g_Texture, txf, tyf, CH_B)];
+                            } else if (g_ToggleLinear) {
+                                g_ColorBuffer.pixels[index].r = getTextureColourBilinear(g_Texture, txf, tyf, CH_R);
+                                g_ColorBuffer.pixels[index].g = getTextureColourBilinear(g_Texture, txf, tyf, CH_G);
+                                g_ColorBuffer.pixels[index].b = getTextureColourBilinear(g_Texture, txf, tyf, CH_B);
+                            }
                         } else {
                             g_ColorBuffer.pixels[index].r = rf * 255;
                             g_ColorBuffer.pixels[index].g = gf * 255;
@@ -1673,9 +1861,15 @@ void DrawTriangle(glm::vec4 v1, glm::vec4 v2, glm::vec4 v3, glm::vec3 c1, glm::v
                         index = getIndexColorBuffer(g_ColorBuffer, floor(xini), floor(y0));
                         if (zini < g_ColorBuffer.pixels[index].z) {
                             if (g_ToggleTexture) {
-                                g_ColorBuffer.pixels[index].r = g_Texture.textureData[getIndexTexture(g_Texture, txini, tyini, CH_R)];
-                                g_ColorBuffer.pixels[index].g = g_Texture.textureData[getIndexTexture(g_Texture, txini, tyini, CH_G)];
-                                g_ColorBuffer.pixels[index].b = g_Texture.textureData[getIndexTexture(g_Texture, txini, tyini, CH_B)];
+                                if (g_ToggleNearest) {
+                                    g_ColorBuffer.pixels[index].r = g_Texture.textureData[getIndexTexture(g_Texture, txini, tyini, CH_R)];
+                                    g_ColorBuffer.pixels[index].g = g_Texture.textureData[getIndexTexture(g_Texture, txini, tyini, CH_G)];
+                                    g_ColorBuffer.pixels[index].b = g_Texture.textureData[getIndexTexture(g_Texture, txini, tyini, CH_B)];
+                                } else if (g_ToggleLinear) {
+                                    g_ColorBuffer.pixels[index].r = getTextureColourBilinear(g_Texture, txini, tyini, CH_R);
+                                    g_ColorBuffer.pixels[index].g = getTextureColourBilinear(g_Texture, txini, tyini, CH_G);
+                                    g_ColorBuffer.pixels[index].b = getTextureColourBilinear(g_Texture, txini, tyini, CH_B);
+                                }   
                             } else {
                                 g_ColorBuffer.pixels[index].r = rini * 255;
                                 g_ColorBuffer.pixels[index].g = gini * 255;
@@ -1744,9 +1938,15 @@ void DrawTriangle(glm::vec4 v1, glm::vec4 v2, glm::vec4 v3, glm::vec3 c1, glm::v
                     index = getIndexColorBuffer(g_ColorBuffer, floor(xini), floor(y0));
                     if (zini < g_ColorBuffer.pixels[index].z) {
                         if (g_ToggleTexture) {
-                            g_ColorBuffer.pixels[index].r = g_Texture.textureData[getIndexTexture(g_Texture, txini, tyini, CH_R)];
-                            g_ColorBuffer.pixels[index].g = g_Texture.textureData[getIndexTexture(g_Texture, txini, tyini, CH_G)];
-                            g_ColorBuffer.pixels[index].b = g_Texture.textureData[getIndexTexture(g_Texture, txini, tyini, CH_B)];
+                            if (g_ToggleNearest) {
+                                g_ColorBuffer.pixels[index].r = g_Texture.textureData[getIndexTexture(g_Texture, txini, tyini, CH_R)];
+                                g_ColorBuffer.pixels[index].g = g_Texture.textureData[getIndexTexture(g_Texture, txini, tyini, CH_G)];
+                                g_ColorBuffer.pixels[index].b = g_Texture.textureData[getIndexTexture(g_Texture, txini, tyini, CH_B)];
+                            } else if (g_ToggleLinear) {
+                                g_ColorBuffer.pixels[index].r = getTextureColourBilinear(g_Texture, txini, tyini, CH_R);
+                                g_ColorBuffer.pixels[index].g = getTextureColourBilinear(g_Texture, txini, tyini, CH_G);
+                                g_ColorBuffer.pixels[index].b = getTextureColourBilinear(g_Texture, txini, tyini, CH_B);
+                            }   
                         } else {
                             g_ColorBuffer.pixels[index].r = rini * 255;
                             g_ColorBuffer.pixels[index].g = gini * 255;
@@ -1758,9 +1958,15 @@ void DrawTriangle(glm::vec4 v1, glm::vec4 v2, glm::vec4 v3, glm::vec3 c1, glm::v
                     index = getIndexColorBuffer(g_ColorBuffer, floor(xf), floor(y0));
                     if (zf < g_ColorBuffer.pixels[index].z) {
                         if (g_ToggleTexture) {
-                            g_ColorBuffer.pixels[index].r = g_Texture.textureData[getIndexTexture(g_Texture, txf, tyf, CH_R)];
-                            g_ColorBuffer.pixels[index].g = g_Texture.textureData[getIndexTexture(g_Texture, txf, tyf, CH_G)];
-                            g_ColorBuffer.pixels[index].b = g_Texture.textureData[getIndexTexture(g_Texture, txf, tyf, CH_B)];
+                            if (g_ToggleNearest) {
+                                g_ColorBuffer.pixels[index].r = g_Texture.textureData[getIndexTexture(g_Texture, txf, tyf, CH_R)];
+                                g_ColorBuffer.pixels[index].g = g_Texture.textureData[getIndexTexture(g_Texture, txf, tyf, CH_G)];
+                                g_ColorBuffer.pixels[index].b = g_Texture.textureData[getIndexTexture(g_Texture, txf, tyf, CH_B)];
+                            } else if (g_ToggleLinear) {
+                                g_ColorBuffer.pixels[index].r = getTextureColourBilinear(g_Texture, txf, tyf, CH_R);
+                                g_ColorBuffer.pixels[index].g = getTextureColourBilinear(g_Texture, txf, tyf, CH_G);
+                                g_ColorBuffer.pixels[index].b = getTextureColourBilinear(g_Texture, txf, tyf, CH_B);
+                            }
                         } else {
                             g_ColorBuffer.pixels[index].r = rf * 255;
                             g_ColorBuffer.pixels[index].g = gf * 255;
@@ -1774,9 +1980,15 @@ void DrawTriangle(glm::vec4 v1, glm::vec4 v2, glm::vec4 v3, glm::vec3 c1, glm::v
                         index = getIndexColorBuffer(g_ColorBuffer, floor(xini), floor(y0));
                         if (zini < g_ColorBuffer.pixels[index].z) {
                             if (g_ToggleTexture) {
-                                g_ColorBuffer.pixels[index].r = g_Texture.textureData[getIndexTexture(g_Texture, txini, tyini, CH_R)];
-                                g_ColorBuffer.pixels[index].g = g_Texture.textureData[getIndexTexture(g_Texture, txini, tyini, CH_G)];
-                                g_ColorBuffer.pixels[index].b = g_Texture.textureData[getIndexTexture(g_Texture, txini, tyini, CH_B)];
+                                if (g_ToggleNearest) {
+                                    g_ColorBuffer.pixels[index].r = g_Texture.textureData[getIndexTexture(g_Texture, txini, tyini, CH_R)];
+                                    g_ColorBuffer.pixels[index].g = g_Texture.textureData[getIndexTexture(g_Texture, txini, tyini, CH_G)];
+                                    g_ColorBuffer.pixels[index].b = g_Texture.textureData[getIndexTexture(g_Texture, txini, tyini, CH_B)];
+                                } else if (g_ToggleLinear) {
+                                    g_ColorBuffer.pixels[index].r = getTextureColourBilinear(g_Texture, txini, tyini, CH_R);
+                                    g_ColorBuffer.pixels[index].g = getTextureColourBilinear(g_Texture, txini, tyini, CH_G);
+                                    g_ColorBuffer.pixels[index].b = getTextureColourBilinear(g_Texture, txini, tyini, CH_B);
+                                }   
                             } else {
                                 g_ColorBuffer.pixels[index].r = rini * 255;
                                 g_ColorBuffer.pixels[index].g = gini * 255;
@@ -1840,9 +2052,15 @@ void DrawTriangle(glm::vec4 v1, glm::vec4 v2, glm::vec4 v3, glm::vec3 c1, glm::v
                     index = getIndexColorBuffer(g_ColorBuffer, floor(xini), floor(y0));
                     if (zini < g_ColorBuffer.pixels[index].z) {
                         if (g_ToggleTexture) {
-                            g_ColorBuffer.pixels[index].r = g_Texture.textureData[getIndexTexture(g_Texture, txini, tyini, CH_R)];
-                            g_ColorBuffer.pixels[index].g = g_Texture.textureData[getIndexTexture(g_Texture, txini, tyini, CH_G)];
-                            g_ColorBuffer.pixels[index].b = g_Texture.textureData[getIndexTexture(g_Texture, txini, tyini, CH_B)];
+                            if (g_ToggleNearest) {
+                                g_ColorBuffer.pixels[index].r = g_Texture.textureData[getIndexTexture(g_Texture, txini, tyini, CH_R)];
+                                g_ColorBuffer.pixels[index].g = g_Texture.textureData[getIndexTexture(g_Texture, txini, tyini, CH_G)];
+                                g_ColorBuffer.pixels[index].b = g_Texture.textureData[getIndexTexture(g_Texture, txini, tyini, CH_B)];
+                            } else if (g_ToggleLinear) {
+                                g_ColorBuffer.pixels[index].r = getTextureColourBilinear(g_Texture, txini, tyini, CH_R);
+                                g_ColorBuffer.pixels[index].g = getTextureColourBilinear(g_Texture, txini, tyini, CH_G);
+                                g_ColorBuffer.pixels[index].b = getTextureColourBilinear(g_Texture, txini, tyini, CH_B);
+                            }   
                         } else {
                             g_ColorBuffer.pixels[index].r = rini * 255;
                             g_ColorBuffer.pixels[index].g = gini * 255;
@@ -1854,9 +2072,15 @@ void DrawTriangle(glm::vec4 v1, glm::vec4 v2, glm::vec4 v3, glm::vec3 c1, glm::v
                     index = getIndexColorBuffer(g_ColorBuffer, floor(xf), floor(y0));
                     if (zf < g_ColorBuffer.pixels[index].z) {
                         if (g_ToggleTexture) {
-                            g_ColorBuffer.pixels[index].r = g_Texture.textureData[getIndexTexture(g_Texture, txf, tyf, CH_R)];
-                            g_ColorBuffer.pixels[index].g = g_Texture.textureData[getIndexTexture(g_Texture, txf, tyf, CH_G)];
-                            g_ColorBuffer.pixels[index].b = g_Texture.textureData[getIndexTexture(g_Texture, txf, tyf, CH_B)];
+                            if (g_ToggleNearest) {
+                                g_ColorBuffer.pixels[index].r = g_Texture.textureData[getIndexTexture(g_Texture, txf, tyf, CH_R)];
+                                g_ColorBuffer.pixels[index].g = g_Texture.textureData[getIndexTexture(g_Texture, txf, tyf, CH_G)];
+                                g_ColorBuffer.pixels[index].b = g_Texture.textureData[getIndexTexture(g_Texture, txf, tyf, CH_B)];
+                            } else if (g_ToggleLinear) {
+                                g_ColorBuffer.pixels[index].r = getTextureColourBilinear(g_Texture, txf, tyf, CH_R);
+                                g_ColorBuffer.pixels[index].g = getTextureColourBilinear(g_Texture, txf, tyf, CH_G);
+                                g_ColorBuffer.pixels[index].b = getTextureColourBilinear(g_Texture, txf, tyf, CH_B);
+                            }
                         } else {
                             g_ColorBuffer.pixels[index].r = rf * 255;
                             g_ColorBuffer.pixels[index].g = gf * 255;
@@ -1870,9 +2094,15 @@ void DrawTriangle(glm::vec4 v1, glm::vec4 v2, glm::vec4 v3, glm::vec3 c1, glm::v
                         index = getIndexColorBuffer(g_ColorBuffer, floor(xini), floor(y0));
                         if (zini < g_ColorBuffer.pixels[index].z) {
                             if (g_ToggleTexture) {
-                                g_ColorBuffer.pixels[index].r = g_Texture.textureData[getIndexTexture(g_Texture, txini, tyini, CH_R)];
-                                g_ColorBuffer.pixels[index].g = g_Texture.textureData[getIndexTexture(g_Texture, txini, tyini, CH_G)];
-                                g_ColorBuffer.pixels[index].b = g_Texture.textureData[getIndexTexture(g_Texture, txini, tyini, CH_B)];
+                                if (g_ToggleNearest) {
+                                    g_ColorBuffer.pixels[index].r = g_Texture.textureData[getIndexTexture(g_Texture, txini, tyini, CH_R)];
+                                    g_ColorBuffer.pixels[index].g = g_Texture.textureData[getIndexTexture(g_Texture, txini, tyini, CH_G)];
+                                    g_ColorBuffer.pixels[index].b = g_Texture.textureData[getIndexTexture(g_Texture, txini, tyini, CH_B)];
+                                } else if (g_ToggleLinear) {
+                                    g_ColorBuffer.pixels[index].r = getTextureColourBilinear(g_Texture, txini, tyini, CH_R);
+                                    g_ColorBuffer.pixels[index].g = getTextureColourBilinear(g_Texture, txini, tyini, CH_G);
+                                    g_ColorBuffer.pixels[index].b = getTextureColourBilinear(g_Texture, txini, tyini, CH_B);
+                                }   
                             } else {
                                 g_ColorBuffer.pixels[index].r = rini * 255;
                                 g_ColorBuffer.pixels[index].g = gini * 255;
@@ -1927,9 +2157,15 @@ void DrawTriangle(glm::vec4 v1, glm::vec4 v2, glm::vec4 v3, glm::vec3 c1, glm::v
                 index = getIndexColorBuffer(g_ColorBuffer, floor(xini), floor(y0));
                 if (zini < g_ColorBuffer.pixels[index].z) {
                     if (g_ToggleTexture) {
-                        g_ColorBuffer.pixels[index].r = g_Texture.textureData[getIndexTexture(g_Texture, txini, tyini, CH_R)];
-                        g_ColorBuffer.pixels[index].g = g_Texture.textureData[getIndexTexture(g_Texture, txini, tyini, CH_G)];
-                        g_ColorBuffer.pixels[index].b = g_Texture.textureData[getIndexTexture(g_Texture, txini, tyini, CH_B)];
+                        if (g_ToggleNearest) {
+                            g_ColorBuffer.pixels[index].r = g_Texture.textureData[getIndexTexture(g_Texture, txini, tyini, CH_R)];
+                            g_ColorBuffer.pixels[index].g = g_Texture.textureData[getIndexTexture(g_Texture, txini, tyini, CH_G)];
+                            g_ColorBuffer.pixels[index].b = g_Texture.textureData[getIndexTexture(g_Texture, txini, tyini, CH_B)];
+                        } else if (g_ToggleLinear) {
+                            g_ColorBuffer.pixels[index].r = getTextureColourBilinear(g_Texture, txini, tyini, CH_R);
+                            g_ColorBuffer.pixels[index].g = getTextureColourBilinear(g_Texture, txini, tyini, CH_G);
+                            g_ColorBuffer.pixels[index].b = getTextureColourBilinear(g_Texture, txini, tyini, CH_B);
+                        }   
                     } else {
                         g_ColorBuffer.pixels[index].r = rini * 255;
                         g_ColorBuffer.pixels[index].g = gini * 255;
@@ -2019,9 +2255,15 @@ void DrawTriangle(glm::vec4 v1, glm::vec4 v2, glm::vec4 v3, glm::vec3 c1, glm::v
                 index = getIndexColorBuffer(g_ColorBuffer, floor(xini), floor(y0));
                 if (zini < g_ColorBuffer.pixels[index].z) {
                     if (g_ToggleTexture) {
-                        g_ColorBuffer.pixels[index].r = g_Texture.textureData[getIndexTexture(g_Texture, txini, tyini, CH_R)];
-                        g_ColorBuffer.pixels[index].g = g_Texture.textureData[getIndexTexture(g_Texture, txini, tyini, CH_G)];
-                        g_ColorBuffer.pixels[index].b = g_Texture.textureData[getIndexTexture(g_Texture, txini, tyini, CH_B)];
+                        if (g_ToggleNearest) {
+                            g_ColorBuffer.pixels[index].r = g_Texture.textureData[getIndexTexture(g_Texture, txini, tyini, CH_R)];
+                            g_ColorBuffer.pixels[index].g = g_Texture.textureData[getIndexTexture(g_Texture, txini, tyini, CH_G)];
+                            g_ColorBuffer.pixels[index].b = g_Texture.textureData[getIndexTexture(g_Texture, txini, tyini, CH_B)];
+                        } else if (g_ToggleLinear) {
+                            g_ColorBuffer.pixels[index].r = getTextureColourBilinear(g_Texture, txini, tyini, CH_R);
+                            g_ColorBuffer.pixels[index].g = getTextureColourBilinear(g_Texture, txini, tyini, CH_G);
+                            g_ColorBuffer.pixels[index].b = getTextureColourBilinear(g_Texture, txini, tyini, CH_B);
+                        }   
                     } else {
                         g_ColorBuffer.pixels[index].r = rini * 255;
                         g_ColorBuffer.pixels[index].g = gini * 255;
@@ -2033,9 +2275,15 @@ void DrawTriangle(glm::vec4 v1, glm::vec4 v2, glm::vec4 v3, glm::vec3 c1, glm::v
                 index = getIndexColorBuffer(g_ColorBuffer, floor(xf), floor(y0));
                 if (zf < g_ColorBuffer.pixels[index].z) {
                     if (g_ToggleTexture) {
-                        g_ColorBuffer.pixels[index].r = g_Texture.textureData[getIndexTexture(g_Texture, txf, tyf, CH_R)];
-                        g_ColorBuffer.pixels[index].g = g_Texture.textureData[getIndexTexture(g_Texture, txf, tyf, CH_G)];
-                        g_ColorBuffer.pixels[index].b = g_Texture.textureData[getIndexTexture(g_Texture, txf, tyf, CH_B)];
+                        if (g_ToggleNearest) {
+                            g_ColorBuffer.pixels[index].r = g_Texture.textureData[getIndexTexture(g_Texture, txf, tyf, CH_R)];
+                            g_ColorBuffer.pixels[index].g = g_Texture.textureData[getIndexTexture(g_Texture, txf, tyf, CH_G)];
+                            g_ColorBuffer.pixels[index].b = g_Texture.textureData[getIndexTexture(g_Texture, txf, tyf, CH_B)];
+                        } else if (g_ToggleLinear) {
+                            g_ColorBuffer.pixels[index].r = getTextureColourBilinear(g_Texture, txf, tyf, CH_R);
+                            g_ColorBuffer.pixels[index].g = getTextureColourBilinear(g_Texture, txf, tyf, CH_G);
+                            g_ColorBuffer.pixels[index].b = getTextureColourBilinear(g_Texture, txf, tyf, CH_B);
+                        }
                     } else {
                         g_ColorBuffer.pixels[index].r = rf * 255;
                         g_ColorBuffer.pixels[index].g = gf * 255;
@@ -2049,9 +2297,15 @@ void DrawTriangle(glm::vec4 v1, glm::vec4 v2, glm::vec4 v3, glm::vec3 c1, glm::v
                     index = getIndexColorBuffer(g_ColorBuffer, floor(xini), floor(y0));
                     if (zini < g_ColorBuffer.pixels[index].z) {
                         if (g_ToggleTexture) {
-                            g_ColorBuffer.pixels[index].r = g_Texture.textureData[getIndexTexture(g_Texture, txini, tyini, CH_R)];
-                            g_ColorBuffer.pixels[index].g = g_Texture.textureData[getIndexTexture(g_Texture, txini, tyini, CH_G)];
-                            g_ColorBuffer.pixels[index].b = g_Texture.textureData[getIndexTexture(g_Texture, txini, tyini, CH_B)];
+                            if (g_ToggleNearest) {
+                                g_ColorBuffer.pixels[index].r = g_Texture.textureData[getIndexTexture(g_Texture, txini, tyini, CH_R)];
+                                g_ColorBuffer.pixels[index].g = g_Texture.textureData[getIndexTexture(g_Texture, txini, tyini, CH_G)];
+                                g_ColorBuffer.pixels[index].b = g_Texture.textureData[getIndexTexture(g_Texture, txini, tyini, CH_B)];
+                            } else if (g_ToggleLinear) {
+                                g_ColorBuffer.pixels[index].r = getTextureColourBilinear(g_Texture, txini, tyini, CH_R);
+                                g_ColorBuffer.pixels[index].g = getTextureColourBilinear(g_Texture, txini, tyini, CH_G);
+                                g_ColorBuffer.pixels[index].b = getTextureColourBilinear(g_Texture, txini, tyini, CH_B);
+                            }   
                         } else {
                             g_ColorBuffer.pixels[index].r = rini * 255;
                             g_ColorBuffer.pixels[index].g = gini * 255;
@@ -2119,9 +2373,15 @@ void DrawTriangle(glm::vec4 v1, glm::vec4 v2, glm::vec4 v3, glm::vec3 c1, glm::v
                     index = getIndexColorBuffer(g_ColorBuffer, floor(xini), floor(y0));
                     if (zini < g_ColorBuffer.pixels[index].z) {
                         if (g_ToggleTexture) {
-                            g_ColorBuffer.pixels[index].r = g_Texture.textureData[getIndexTexture(g_Texture, txini, tyini, CH_R)];
-                            g_ColorBuffer.pixels[index].g = g_Texture.textureData[getIndexTexture(g_Texture, txini, tyini, CH_G)];
-                            g_ColorBuffer.pixels[index].b = g_Texture.textureData[getIndexTexture(g_Texture, txini, tyini, CH_B)];
+                            if (g_ToggleNearest) {
+                                g_ColorBuffer.pixels[index].r = g_Texture.textureData[getIndexTexture(g_Texture, txini, tyini, CH_R)];
+                                g_ColorBuffer.pixels[index].g = g_Texture.textureData[getIndexTexture(g_Texture, txini, tyini, CH_G)];
+                                g_ColorBuffer.pixels[index].b = g_Texture.textureData[getIndexTexture(g_Texture, txini, tyini, CH_B)];
+                            } else if (g_ToggleLinear) {
+                                g_ColorBuffer.pixels[index].r = getTextureColourBilinear(g_Texture, txini, tyini, CH_R);
+                                g_ColorBuffer.pixels[index].g = getTextureColourBilinear(g_Texture, txini, tyini, CH_G);
+                                g_ColorBuffer.pixels[index].b = getTextureColourBilinear(g_Texture, txini, tyini, CH_B);
+                            }   
                         } else {
                             g_ColorBuffer.pixels[index].r = rini * 255;
                             g_ColorBuffer.pixels[index].g = gini * 255;
@@ -2133,9 +2393,15 @@ void DrawTriangle(glm::vec4 v1, glm::vec4 v2, glm::vec4 v3, glm::vec3 c1, glm::v
                     index = getIndexColorBuffer(g_ColorBuffer, floor(xf), floor(y0));
                     if (zf < g_ColorBuffer.pixels[index].z) {
                         if (g_ToggleTexture) {
-                            g_ColorBuffer.pixels[index].r = g_Texture.textureData[getIndexTexture(g_Texture, txf, tyf, CH_R)];
-                            g_ColorBuffer.pixels[index].g = g_Texture.textureData[getIndexTexture(g_Texture, txf, tyf, CH_G)];
-                            g_ColorBuffer.pixels[index].b = g_Texture.textureData[getIndexTexture(g_Texture, txf, tyf, CH_B)];
+                            if (g_ToggleNearest) {
+                                g_ColorBuffer.pixels[index].r = g_Texture.textureData[getIndexTexture(g_Texture, txf, tyf, CH_R)];
+                                g_ColorBuffer.pixels[index].g = g_Texture.textureData[getIndexTexture(g_Texture, txf, tyf, CH_G)];
+                                g_ColorBuffer.pixels[index].b = g_Texture.textureData[getIndexTexture(g_Texture, txf, tyf, CH_B)];
+                            } else if (g_ToggleLinear) {
+                                g_ColorBuffer.pixels[index].r = getTextureColourBilinear(g_Texture, txf, tyf, CH_R);
+                                g_ColorBuffer.pixels[index].g = getTextureColourBilinear(g_Texture, txf, tyf, CH_G);
+                                g_ColorBuffer.pixels[index].b = getTextureColourBilinear(g_Texture, txf, tyf, CH_B);
+                            }
                         } else {
                             g_ColorBuffer.pixels[index].r = rf * 255;
                             g_ColorBuffer.pixels[index].g = gf * 255;
@@ -2149,9 +2415,15 @@ void DrawTriangle(glm::vec4 v1, glm::vec4 v2, glm::vec4 v3, glm::vec3 c1, glm::v
                         index = getIndexColorBuffer(g_ColorBuffer, floor(xini), floor(y0));
                         if (zini < g_ColorBuffer.pixels[index].z) {
                             if (g_ToggleTexture) {
-                                g_ColorBuffer.pixels[index].r = g_Texture.textureData[getIndexTexture(g_Texture, txini, tyini, CH_R)];
-                                g_ColorBuffer.pixels[index].g = g_Texture.textureData[getIndexTexture(g_Texture, txini, tyini, CH_G)];
-                                g_ColorBuffer.pixels[index].b = g_Texture.textureData[getIndexTexture(g_Texture, txini, tyini, CH_B)];
+                                if (g_ToggleNearest) {
+                                    g_ColorBuffer.pixels[index].r = g_Texture.textureData[getIndexTexture(g_Texture, txini, tyini, CH_R)];
+                                    g_ColorBuffer.pixels[index].g = g_Texture.textureData[getIndexTexture(g_Texture, txini, tyini, CH_G)];
+                                    g_ColorBuffer.pixels[index].b = g_Texture.textureData[getIndexTexture(g_Texture, txini, tyini, CH_B)];
+                                } else if (g_ToggleLinear) {
+                                    g_ColorBuffer.pixels[index].r = getTextureColourBilinear(g_Texture, txini, tyini, CH_R);
+                                    g_ColorBuffer.pixels[index].g = getTextureColourBilinear(g_Texture, txini, tyini, CH_G);
+                                    g_ColorBuffer.pixels[index].b = getTextureColourBilinear(g_Texture, txini, tyini, CH_B);
+                                }   
                             } else {
                                 g_ColorBuffer.pixels[index].r = rini * 255;
                                 g_ColorBuffer.pixels[index].g = gini * 255;
@@ -2215,9 +2487,15 @@ void DrawTriangle(glm::vec4 v1, glm::vec4 v2, glm::vec4 v3, glm::vec3 c1, glm::v
                     index = getIndexColorBuffer(g_ColorBuffer, floor(xini), floor(y0));
                     if (zini < g_ColorBuffer.pixels[index].z) {
                         if (g_ToggleTexture) {
-                            g_ColorBuffer.pixels[index].r = g_Texture.textureData[getIndexTexture(g_Texture, txini, tyini, CH_R)];
-                            g_ColorBuffer.pixels[index].g = g_Texture.textureData[getIndexTexture(g_Texture, txini, tyini, CH_G)];
-                            g_ColorBuffer.pixels[index].b = g_Texture.textureData[getIndexTexture(g_Texture, txini, tyini, CH_B)];
+                            if (g_ToggleNearest) {
+                                g_ColorBuffer.pixels[index].r = g_Texture.textureData[getIndexTexture(g_Texture, txini, tyini, CH_R)];
+                                g_ColorBuffer.pixels[index].g = g_Texture.textureData[getIndexTexture(g_Texture, txini, tyini, CH_G)];
+                                g_ColorBuffer.pixels[index].b = g_Texture.textureData[getIndexTexture(g_Texture, txini, tyini, CH_B)];
+                            } else if (g_ToggleLinear) {
+                                g_ColorBuffer.pixels[index].r = getTextureColourBilinear(g_Texture, txini, tyini, CH_R);
+                                g_ColorBuffer.pixels[index].g = getTextureColourBilinear(g_Texture, txini, tyini, CH_G);
+                                g_ColorBuffer.pixels[index].b = getTextureColourBilinear(g_Texture, txini, tyini, CH_B);
+                            }   
                         } else {
                             g_ColorBuffer.pixels[index].r = rini * 255;
                             g_ColorBuffer.pixels[index].g = gini * 255;
@@ -2229,9 +2507,15 @@ void DrawTriangle(glm::vec4 v1, glm::vec4 v2, glm::vec4 v3, glm::vec3 c1, glm::v
                     index = getIndexColorBuffer(g_ColorBuffer, floor(xf), floor(y0));
                     if (zf < g_ColorBuffer.pixels[index].z) {
                         if (g_ToggleTexture) {
-                            g_ColorBuffer.pixels[index].r = g_Texture.textureData[getIndexTexture(g_Texture, txf, tyf, CH_R)];
-                            g_ColorBuffer.pixels[index].g = g_Texture.textureData[getIndexTexture(g_Texture, txf, tyf, CH_G)];
-                            g_ColorBuffer.pixels[index].b = g_Texture.textureData[getIndexTexture(g_Texture, txf, tyf, CH_B)];
+                            if (g_ToggleNearest) {
+                                g_ColorBuffer.pixels[index].r = g_Texture.textureData[getIndexTexture(g_Texture, txf, tyf, CH_R)];
+                                g_ColorBuffer.pixels[index].g = g_Texture.textureData[getIndexTexture(g_Texture, txf, tyf, CH_G)];
+                                g_ColorBuffer.pixels[index].b = g_Texture.textureData[getIndexTexture(g_Texture, txf, tyf, CH_B)];
+                            } else if (g_ToggleLinear) {
+                                g_ColorBuffer.pixels[index].r = getTextureColourBilinear(g_Texture, txf, tyf, CH_R);
+                                g_ColorBuffer.pixels[index].g = getTextureColourBilinear(g_Texture, txf, tyf, CH_G);
+                                g_ColorBuffer.pixels[index].b = getTextureColourBilinear(g_Texture, txf, tyf, CH_B);
+                            }
                         } else {
                             g_ColorBuffer.pixels[index].r = rf * 255;
                             g_ColorBuffer.pixels[index].g = gf * 255;
@@ -2245,9 +2529,15 @@ void DrawTriangle(glm::vec4 v1, glm::vec4 v2, glm::vec4 v3, glm::vec3 c1, glm::v
                         index = getIndexColorBuffer(g_ColorBuffer, floor(xini), floor(y0));
                         if (zini < g_ColorBuffer.pixels[index].z) {
                             if (g_ToggleTexture) {
-                                g_ColorBuffer.pixels[index].r = g_Texture.textureData[getIndexTexture(g_Texture, txini, tyini, CH_R)];
-                                g_ColorBuffer.pixels[index].g = g_Texture.textureData[getIndexTexture(g_Texture, txini, tyini, CH_G)];
-                                g_ColorBuffer.pixels[index].b = g_Texture.textureData[getIndexTexture(g_Texture, txini, tyini, CH_B)];
+                                if (g_ToggleNearest) {
+                                    g_ColorBuffer.pixels[index].r = g_Texture.textureData[getIndexTexture(g_Texture, txini, tyini, CH_R)];
+                                    g_ColorBuffer.pixels[index].g = g_Texture.textureData[getIndexTexture(g_Texture, txini, tyini, CH_G)];
+                                    g_ColorBuffer.pixels[index].b = g_Texture.textureData[getIndexTexture(g_Texture, txini, tyini, CH_B)];
+                                } else if (g_ToggleLinear) {
+                                    g_ColorBuffer.pixels[index].r = getTextureColourBilinear(g_Texture, txini, tyini, CH_R);
+                                    g_ColorBuffer.pixels[index].g = getTextureColourBilinear(g_Texture, txini, tyini, CH_G);
+                                    g_ColorBuffer.pixels[index].b = getTextureColourBilinear(g_Texture, txini, tyini, CH_B);
+                                }   
                             } else {
                                 g_ColorBuffer.pixels[index].r = rini * 255;
                                 g_ColorBuffer.pixels[index].g = gini * 255;
@@ -2315,9 +2605,15 @@ void DrawTriangle(glm::vec4 v1, glm::vec4 v2, glm::vec4 v3, glm::vec3 c1, glm::v
                     index = getIndexColorBuffer(g_ColorBuffer, floor(xini), floor(y0));
                     if (zini < g_ColorBuffer.pixels[index].z) {
                         if (g_ToggleTexture) {
-                            g_ColorBuffer.pixels[index].r = g_Texture.textureData[getIndexTexture(g_Texture, txini, tyini, CH_R)];
-                            g_ColorBuffer.pixels[index].g = g_Texture.textureData[getIndexTexture(g_Texture, txini, tyini, CH_G)];
-                            g_ColorBuffer.pixels[index].b = g_Texture.textureData[getIndexTexture(g_Texture, txini, tyini, CH_B)];
+                            if (g_ToggleNearest) {
+                                g_ColorBuffer.pixels[index].r = g_Texture.textureData[getIndexTexture(g_Texture, txini, tyini, CH_R)];
+                                g_ColorBuffer.pixels[index].g = g_Texture.textureData[getIndexTexture(g_Texture, txini, tyini, CH_G)];
+                                g_ColorBuffer.pixels[index].b = g_Texture.textureData[getIndexTexture(g_Texture, txini, tyini, CH_B)];
+                            } else if (g_ToggleLinear) {
+                                g_ColorBuffer.pixels[index].r = getTextureColourBilinear(g_Texture, txini, tyini, CH_R);
+                                g_ColorBuffer.pixels[index].g = getTextureColourBilinear(g_Texture, txini, tyini, CH_G);
+                                g_ColorBuffer.pixels[index].b = getTextureColourBilinear(g_Texture, txini, tyini, CH_B);
+                            }   
                         } else {
                             g_ColorBuffer.pixels[index].r = rini * 255;
                             g_ColorBuffer.pixels[index].g = gini * 255;
@@ -2329,9 +2625,15 @@ void DrawTriangle(glm::vec4 v1, glm::vec4 v2, glm::vec4 v3, glm::vec3 c1, glm::v
                     index = getIndexColorBuffer(g_ColorBuffer, floor(xf), floor(y0));
                     if (zf < g_ColorBuffer.pixels[index].z) {
                         if (g_ToggleTexture) {
-                            g_ColorBuffer.pixels[index].r = g_Texture.textureData[getIndexTexture(g_Texture, txf, tyf, CH_R)];
-                            g_ColorBuffer.pixels[index].g = g_Texture.textureData[getIndexTexture(g_Texture, txf, tyf, CH_G)];
-                            g_ColorBuffer.pixels[index].b = g_Texture.textureData[getIndexTexture(g_Texture, txf, tyf, CH_B)];
+                            if (g_ToggleNearest) {
+                                g_ColorBuffer.pixels[index].r = g_Texture.textureData[getIndexTexture(g_Texture, txf, tyf, CH_R)];
+                                g_ColorBuffer.pixels[index].g = g_Texture.textureData[getIndexTexture(g_Texture, txf, tyf, CH_G)];
+                                g_ColorBuffer.pixels[index].b = g_Texture.textureData[getIndexTexture(g_Texture, txf, tyf, CH_B)];
+                            } else if (g_ToggleLinear) {
+                                g_ColorBuffer.pixels[index].r = getTextureColourBilinear(g_Texture, txf, tyf, CH_R);
+                                g_ColorBuffer.pixels[index].g = getTextureColourBilinear(g_Texture, txf, tyf, CH_G);
+                                g_ColorBuffer.pixels[index].b = getTextureColourBilinear(g_Texture, txf, tyf, CH_B);
+                            }
                         } else {
                             g_ColorBuffer.pixels[index].r = rf * 255;
                             g_ColorBuffer.pixels[index].g = gf * 255;
@@ -2345,9 +2647,15 @@ void DrawTriangle(glm::vec4 v1, glm::vec4 v2, glm::vec4 v3, glm::vec3 c1, glm::v
                         index = getIndexColorBuffer(g_ColorBuffer, floor(xini), floor(y0));
                         if (zini < g_ColorBuffer.pixels[index].z) {
                             if (g_ToggleTexture) {
-                                g_ColorBuffer.pixels[index].r = g_Texture.textureData[getIndexTexture(g_Texture, txini, tyini, CH_R)];
-                                g_ColorBuffer.pixels[index].g = g_Texture.textureData[getIndexTexture(g_Texture, txini, tyini, CH_G)];
-                                g_ColorBuffer.pixels[index].b = g_Texture.textureData[getIndexTexture(g_Texture, txini, tyini, CH_B)];
+                                if (g_ToggleNearest) {
+                                    g_ColorBuffer.pixels[index].r = g_Texture.textureData[getIndexTexture(g_Texture, txini, tyini, CH_R)];
+                                    g_ColorBuffer.pixels[index].g = g_Texture.textureData[getIndexTexture(g_Texture, txini, tyini, CH_G)];
+                                    g_ColorBuffer.pixels[index].b = g_Texture.textureData[getIndexTexture(g_Texture, txini, tyini, CH_B)];
+                                } else if (g_ToggleLinear) {
+                                    g_ColorBuffer.pixels[index].r = getTextureColourBilinear(g_Texture, txini, tyini, CH_R);
+                                    g_ColorBuffer.pixels[index].g = getTextureColourBilinear(g_Texture, txini, tyini, CH_G);
+                                    g_ColorBuffer.pixels[index].b = getTextureColourBilinear(g_Texture, txini, tyini, CH_B);
+                                }   
                             } else {
                                 g_ColorBuffer.pixels[index].r = rini * 255;
                                 g_ColorBuffer.pixels[index].g = gini * 255;
@@ -2411,9 +2719,15 @@ void DrawTriangle(glm::vec4 v1, glm::vec4 v2, glm::vec4 v3, glm::vec3 c1, glm::v
                     index = getIndexColorBuffer(g_ColorBuffer, floor(xini), floor(y0));
                     if (zini < g_ColorBuffer.pixels[index].z) {
                         if (g_ToggleTexture) {
-                            g_ColorBuffer.pixels[index].r = g_Texture.textureData[getIndexTexture(g_Texture, txini, tyini, CH_R)];
-                            g_ColorBuffer.pixels[index].g = g_Texture.textureData[getIndexTexture(g_Texture, txini, tyini, CH_G)];
-                            g_ColorBuffer.pixels[index].b = g_Texture.textureData[getIndexTexture(g_Texture, txini, tyini, CH_B)];
+                            if (g_ToggleNearest) {
+                                g_ColorBuffer.pixels[index].r = g_Texture.textureData[getIndexTexture(g_Texture, txini, tyini, CH_R)];
+                                g_ColorBuffer.pixels[index].g = g_Texture.textureData[getIndexTexture(g_Texture, txini, tyini, CH_G)];
+                                g_ColorBuffer.pixels[index].b = g_Texture.textureData[getIndexTexture(g_Texture, txini, tyini, CH_B)];
+                            } else if (g_ToggleLinear) {
+                                g_ColorBuffer.pixels[index].r = getTextureColourBilinear(g_Texture, txini, tyini, CH_R);
+                                g_ColorBuffer.pixels[index].g = getTextureColourBilinear(g_Texture, txini, tyini, CH_G);
+                                g_ColorBuffer.pixels[index].b = getTextureColourBilinear(g_Texture, txini, tyini, CH_B);
+                            }   
                         } else {
                             g_ColorBuffer.pixels[index].r = rini * 255;
                             g_ColorBuffer.pixels[index].g = gini * 255;
@@ -2425,9 +2739,15 @@ void DrawTriangle(glm::vec4 v1, glm::vec4 v2, glm::vec4 v3, glm::vec3 c1, glm::v
                     index = getIndexColorBuffer(g_ColorBuffer, floor(xf), floor(y0));
                     if (zf < g_ColorBuffer.pixels[index].z) {
                         if (g_ToggleTexture) {
-                            g_ColorBuffer.pixels[index].r = g_Texture.textureData[getIndexTexture(g_Texture, txf, tyf, CH_R)];
-                            g_ColorBuffer.pixels[index].g = g_Texture.textureData[getIndexTexture(g_Texture, txf, tyf, CH_G)];
-                            g_ColorBuffer.pixels[index].b = g_Texture.textureData[getIndexTexture(g_Texture, txf, tyf, CH_B)];
+                            if (g_ToggleNearest) {
+                                g_ColorBuffer.pixels[index].r = g_Texture.textureData[getIndexTexture(g_Texture, txf, tyf, CH_R)];
+                                g_ColorBuffer.pixels[index].g = g_Texture.textureData[getIndexTexture(g_Texture, txf, tyf, CH_G)];
+                                g_ColorBuffer.pixels[index].b = g_Texture.textureData[getIndexTexture(g_Texture, txf, tyf, CH_B)];
+                            } else if (g_ToggleLinear) {
+                                g_ColorBuffer.pixels[index].r = getTextureColourBilinear(g_Texture, txf, tyf, CH_R);
+                                g_ColorBuffer.pixels[index].g = getTextureColourBilinear(g_Texture, txf, tyf, CH_G);
+                                g_ColorBuffer.pixels[index].b = getTextureColourBilinear(g_Texture, txf, tyf, CH_B);
+                            }
                         } else {
                             g_ColorBuffer.pixels[index].r = rf * 255;
                             g_ColorBuffer.pixels[index].g = gf * 255;
@@ -2441,9 +2761,15 @@ void DrawTriangle(glm::vec4 v1, glm::vec4 v2, glm::vec4 v3, glm::vec3 c1, glm::v
                         index = getIndexColorBuffer(g_ColorBuffer, floor(xini), floor(y0));
                         if (zini < g_ColorBuffer.pixels[index].z) {
                             if (g_ToggleTexture) {
-                                g_ColorBuffer.pixels[index].r = g_Texture.textureData[getIndexTexture(g_Texture, txini, tyini, CH_R)];
-                                g_ColorBuffer.pixels[index].g = g_Texture.textureData[getIndexTexture(g_Texture, txini, tyini, CH_G)];
-                                g_ColorBuffer.pixels[index].b = g_Texture.textureData[getIndexTexture(g_Texture, txini, tyini, CH_B)];
+                                if (g_ToggleNearest) {
+                                    g_ColorBuffer.pixels[index].r = g_Texture.textureData[getIndexTexture(g_Texture, txini, tyini, CH_R)];
+                                    g_ColorBuffer.pixels[index].g = g_Texture.textureData[getIndexTexture(g_Texture, txini, tyini, CH_G)];
+                                    g_ColorBuffer.pixels[index].b = g_Texture.textureData[getIndexTexture(g_Texture, txini, tyini, CH_B)];
+                                } else if (g_ToggleLinear) {
+                                    g_ColorBuffer.pixels[index].r = getTextureColourBilinear(g_Texture, txini, tyini, CH_R);
+                                    g_ColorBuffer.pixels[index].g = getTextureColourBilinear(g_Texture, txini, tyini, CH_G);
+                                    g_ColorBuffer.pixels[index].b = getTextureColourBilinear(g_Texture, txini, tyini, CH_B);
+                                }   
                             } else {
                                 g_ColorBuffer.pixels[index].r = rini * 255;
                                 g_ColorBuffer.pixels[index].g = gini * 255;
@@ -2498,9 +2824,15 @@ void DrawTriangle(glm::vec4 v1, glm::vec4 v2, glm::vec4 v3, glm::vec3 c1, glm::v
                 index = getIndexColorBuffer(g_ColorBuffer, floor(xini), floor(y0));
                 if (zini < g_ColorBuffer.pixels[index].z) {
                     if (g_ToggleTexture) {
-                        g_ColorBuffer.pixels[index].r = g_Texture.textureData[getIndexTexture(g_Texture, txini, tyini, CH_R)];
-                        g_ColorBuffer.pixels[index].g = g_Texture.textureData[getIndexTexture(g_Texture, txini, tyini, CH_G)];
-                        g_ColorBuffer.pixels[index].b = g_Texture.textureData[getIndexTexture(g_Texture, txini, tyini, CH_B)];
+                        if (g_ToggleNearest) {
+                            g_ColorBuffer.pixels[index].r = g_Texture.textureData[getIndexTexture(g_Texture, txini, tyini, CH_R)];
+                            g_ColorBuffer.pixels[index].g = g_Texture.textureData[getIndexTexture(g_Texture, txini, tyini, CH_G)];
+                            g_ColorBuffer.pixels[index].b = g_Texture.textureData[getIndexTexture(g_Texture, txini, tyini, CH_B)];
+                        } else if (g_ToggleLinear) {
+                            g_ColorBuffer.pixels[index].r = getTextureColourBilinear(g_Texture, txini, tyini, CH_R);
+                            g_ColorBuffer.pixels[index].g = getTextureColourBilinear(g_Texture, txini, tyini, CH_G);
+                            g_ColorBuffer.pixels[index].b = getTextureColourBilinear(g_Texture, txini, tyini, CH_B);
+                        }   
                     } else {
                         g_ColorBuffer.pixels[index].r = rini * 255;
                         g_ColorBuffer.pixels[index].g = gini * 255;
